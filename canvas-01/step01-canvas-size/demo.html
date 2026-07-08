@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step01 Demo: キャンバスの2つのサイズ</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #f5f5f5; }
+  h2 { font-size: 16px; margin: 24px 0 8px; }
+  canvas { background: #fff; border: 1px solid #999; display: block; }
+  .note { color: #666; font-size: 13px; margin: 4px 0 0; }
+
+  /* デモ2: バッファ200x100 を CSS で 2倍に引き伸ばす */
+  #stretched { width: 400px; height: 200px; }
+
+  /* デモ3: CSSで表示サイズだけ決める。バッファはJSで合わせる */
+  #sharp { width: 100%; height: 200px; }
+</style>
+</head>
+<body>
+<h1>Step01: キャンバスの2つのサイズ</h1>
+
+<h2>1. 属性も CSS も指定しない → デフォルト 300×150</h2>
+<canvas id="default-size"></canvas>
+<p class="note">width/height 属性を省略すると仕様上 300×150 になる。</p>
+
+<h2>2. バッファ 200×100 を CSS で 400×200 に表示 → ぼやける</h2>
+<canvas id="stretched" width="200" height="100"></canvas>
+<p class="note">内部の 200×100 ビットマップをブラウザが2倍に拡大して表示している。
+画像を引き伸ばしたのと同じで、文字も線もにじむ。</p>
+
+<h2>3. DPR 対応(バッファ = 表示サイズ × devicePixelRatio) → くっきり</h2>
+<canvas id="sharp"></canvas>
+<p class="note">ウィンドウをリサイズすると、このキャンバスだけ追従して描き直される。</p>
+
+<script>
+// ---- 共通の描画内容: どのキャンバスにも同じものを描いて比較する ----
+// w, h は「CSS px での描ける範囲」を渡す
+function drawContent(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+
+  // 枠いっぱいの斜め線: ぼやけ具合が分かりやすい
+  ctx.strokeStyle = '#4a90d9';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(w, h);
+  ctx.moveTo(w, 0);
+  ctx.lineTo(0, h);
+  ctx.stroke();
+
+  // 円
+  ctx.beginPath();
+  ctx.arc(w / 2, h / 2, Math.min(w, h) / 3, 0, Math.PI * 2);
+  ctx.strokeStyle = '#d94a4a';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 文字: にじみが一番分かりやすい
+  ctx.fillStyle = '#222';
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`バッファ ${ctx.canvas.width}×${ctx.canvas.height}`, w / 2, 20);
+}
+
+// ---- デモ1: デフォルトサイズ ----
+{
+  const canvas = document.getElementById('default-size');
+  const ctx = canvas.getContext('2d');
+  // canvas.width は 300, canvas.height は 150 になっているはず
+  drawContent(ctx, canvas.width, canvas.height);
+}
+
+// ---- デモ2: 引き伸ばし ----
+{
+  const canvas = document.getElementById('stretched');
+  const ctx = canvas.getContext('2d');
+  // バッファは 200×100。描くのは 200×100 の座標系。
+  // それを CSS が 400×200 に拡大表示するので、ぼやける。
+  drawContent(ctx, canvas.width, canvas.height);
+}
+
+// ---- デモ3: DPR 対応 ----
+{
+  const canvas = document.getElementById('sharp');
+  const ctx = canvas.getContext('2d');
+
+  function setupCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect(); // CSS で決まった表示サイズ
+
+    // 描画バッファを「表示サイズ × DPR」にする → 物理ピクセルと 1:1
+    canvas.width  = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+
+    // 注意: width への代入で変換もリセットされているので、毎回 scale し直す
+    ctx.scale(dpr, dpr);
+  }
+
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    // 以降の座標は CSS px 感覚で OK(scale が DPR 倍してくれる)
+    drawContent(ctx, rect.width, rect.height);
+  }
+
+  window.addEventListener('resize', () => {
+    setupCanvas(); // サイズ変更 → 中身が消える
+    draw();        // → だから必ず描き直す
+  });
+
+  setupCanvas();
+  draw();
+}
+</script>
+</body>
+</html>

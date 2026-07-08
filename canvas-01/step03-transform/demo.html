@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step03 Demo: 座標変換と save/restore</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  h2 { font-size: 15px; margin: 24px 0 8px; }
+  canvas { background: #fff; border: 1px solid #999; display: block; }
+  .note { color: #666; font-size: 13px; margin: 4px 0 0; }
+</style>
+</head>
+<body>
+<h1>Step03: 座標変換</h1>
+
+<h2>1. translate は累積する / 描画済みのものは動かない</h2>
+<canvas id="c1" style="width:600px; height:140px;"></canvas>
+<p class="note">コードはすべて fillRect(0, 0, 60, 60)。translate の累積で階段状に並ぶ。</p>
+
+<h2>2. 変換の順番: translate→scale と scale→translate は別物</h2>
+<canvas id="c2" style="width:600px; height:160px;"></canvas>
+
+<h2>3. save/restore の入れ子(親子関係) — 動くアナログ時計</h2>
+<canvas id="c3" style="width:600px; height:220px;"></canvas>
+<p class="note">盤面の変換の「中」で針ごとに save→rotate→restore している。</p>
+
+<h2>4. 図形をその場で回すイディオム(中心へ translate → rotate)</h2>
+<canvas id="c4" style="width:600px; height:200px;"></canvas>
+
+<script>
+// DPR 対応セットアップ(Step01 の復習)
+function setup(id) {
+  const canvas = document.getElementById(id);
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  return { ctx, W: rect.width, H: rect.height, dpr };
+}
+
+// ============================================================
+// 1. translate の累積
+// ============================================================
+{
+  const { ctx } = setup('c1');
+  const colors = ['#4a90d9', '#5aa05a', '#d9782a', '#b05ad9'];
+
+  colors.forEach((color, i) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, 60, 60);   // 全く同じ座標に描いているのに…
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(`#${i}`, 8, 20);
+    ctx.translate(80, 20);        // ← 変換が累積するので次はずれる
+    // すでに描いた矩形は動かない点にも注目
+  });
+}
+
+// ============================================================
+// 2. 変換の順番
+// ============================================================
+{
+  const { ctx } = setup('c2');
+  ctx.font = '13px sans-serif';
+
+  // (a) translate(100,30) → scale(2,2)
+  ctx.save();
+  ctx.translate(100, 30);
+  ctx.scale(2, 2);
+  ctx.fillStyle = '#4a90d9';
+  ctx.fillRect(0, 0, 40, 40); // 原点(=100,30) から 2倍サイズで描かれる
+  ctx.restore();
+  ctx.fillStyle = '#333';
+  ctx.fillText('translate(100,30) → scale(2) : x=100 に描かれる', 20, 140);
+
+  // (b) scale(2,2) → translate(100,30)
+  ctx.save();
+  ctx.scale(2, 2);
+  ctx.translate(150, 15); // この 150 も 2倍され、実際は x=300 へ!
+  ctx.fillStyle = '#d9782a';
+  ctx.fillRect(0, 0, 40, 40);
+  ctx.restore();
+  ctx.fillText('scale(2) → translate(150,15) : 移動量も2倍され x=300 に描かれる', 260, 140);
+}
+
+// ============================================================
+// 3. save/restore の入れ子 — アナログ時計
+// ============================================================
+{
+  const { ctx, W, H, dpr } = setup('c3');
+
+  function drawClock() {
+    // 毎フレーム先頭で「DPR だけの状態」にリセット(実戦イディオム)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.save();                    // ← 盤面全体の変換を隔離
+    ctx.translate(W / 2, H / 2);   // 原点を時計の中心へ
+
+    // 盤面
+    ctx.beginPath();
+    ctx.arc(0, 0, 90, 0, Math.PI * 2);
+    ctx.strokeStyle = '#334';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // 目盛り: 「回して縦線を描く」を12回。save/restore で各回を隔離
+    for (let i = 0; i < 12; i++) {
+      ctx.save();
+      ctx.rotate((i / 12) * Math.PI * 2);
+      ctx.beginPath();
+      ctx.moveTo(0, -90);
+      ctx.lineTo(0, -80);
+      ctx.stroke();
+      ctx.restore(); // ← これで回転が累積しない
+    }
+
+    const t = new Date();
+    const sec = t.getSeconds() + t.getMilliseconds() / 1000;
+    const min = t.getMinutes() + sec / 60;
+    const hour = (t.getHours() % 12) + min / 60;
+
+    // 針を描くヘルパー: 「回してから上向きに線を引く」
+    function hand(angle, length, width, color) {
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, 10);
+      ctx.lineTo(0, -length);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    hand((hour / 12) * Math.PI * 2, 45, 5, '#334');
+    hand((min / 60) * Math.PI * 2, 70, 3, '#334');
+    hand((sec / 60) * Math.PI * 2, 80, 1.5, '#d9534f');
+
+    ctx.restore(); // 盤面の translate を解除
+
+    requestAnimationFrame(drawClock); // アニメーションループ(Step06 で詳説)
+  }
+  drawClock();
+}
+
+// ============================================================
+// 4. 図形をその場で回すイディオム
+// ============================================================
+{
+  const { ctx, W, H, dpr } = setup('c4');
+  let angle = 0;
+
+  function drawRotatingCard(x, y, w, h, a) {
+    ctx.save();
+    ctx.translate(x + w / 2, y + h / 2); // 1. 原点を図形の中心へ
+    ctx.rotate(a);                       // 2. そこで回す
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, -h / 2, w, h, 10); // 3. 中心基準で描く
+    ctx.fillStyle = '#4a90d9';
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('WIDGET', 0, 0);
+    ctx.restore();
+  }
+
+  function tick() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    drawRotatingCard(80, 50, 140, 90, angle);
+    drawRotatingCard(300, 50, 140, 90, -angle * 0.7);
+    drawRotatingCard(80 + 440, 50, 140, 90, Math.sin(angle) * 0.4);
+    angle += 0.01;
+    requestAnimationFrame(tick);
+  }
+  tick();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step04 Demo: パンとズーム(仮想座標)</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fafbfc; border: 1px solid #999; display: block; cursor: grab; }
+  canvas.panning { cursor: grabbing; }
+</style>
+</head>
+<body>
+<h1>Step04: パン & ズーム</h1>
+<p>ドラッグで画面移動(パン)、マウスホイールでカーソル位置中心にズーム。左上の数値を見ながら動かすこと!</p>
+<canvas id="canvas" style="width: 100%; height: 560px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+let W, H;
+
+function setupCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  W = rect.width; H = rect.height;
+}
+setupCanvas();
+
+// ============================================================
+// カメラ: 「画面左上に見えているワールド座標」と「拡大率」
+// ============================================================
+const camera = { x: -50, y: -50, zoom: 1 };
+
+// スクリーン座標 → ワールド座標(マウス位置の解釈に使う)
+function screenToWorld(sx, sy) {
+  return { x: sx / camera.zoom + camera.x, y: sy / camera.zoom + camera.y };
+}
+
+// ワールド座標 → スクリーン座標(HUD 表示などに使う)
+function worldToScreen(wx, wy) {
+  return { x: (wx - camera.x) * camera.zoom, y: (wy - camera.y) * camera.zoom };
+}
+
+// ============================================================
+// ワールドの中身(ウィジェット風の矩形)— 座標はすべてワールド座標
+// ============================================================
+const widgets = [
+  { x: 0,    y: 0,   w: 200, h: 120, color: '#4a90d9', label: 'A (0, 0)' },
+  { x: 300,  y: 60,  w: 160, h: 160, color: '#5aa05a', label: 'B (300, 60)' },
+  { x: 80,   y: 250, w: 240, h: 100, color: '#d9782a', label: 'C (80, 250)' },
+  { x: 500,  y: 300, w: 180, h: 130, color: '#b05ad9', label: 'D (500, 300)' },
+  { x: -250, y: 120, w: 150, h: 150, color: '#d9534f', label: 'E (-250, 120)' },
+];
+
+// 見えている範囲だけグリッド線を引く(無限グリッドの定石)
+function drawGrid() {
+  const step = 100; // ワールド座標で 100 ごと
+
+  // 画面の四隅がワールドのどこかを求め、その範囲だけ線を引く
+  const topLeft = screenToWorld(0, 0);
+  const bottomRight = screenToWorld(W, H);
+
+  // step の倍数に切り下げ/切り上げして開始・終了位置を決める
+  const startX = Math.floor(topLeft.x / step) * step;
+  const endX   = Math.ceil(bottomRight.x / step) * step;
+  const startY = Math.floor(topLeft.y / step) * step;
+  const endY   = Math.ceil(bottomRight.y / step) * step;
+
+  ctx.strokeStyle = '#dde3ea';
+  ctx.lineWidth = 1 / camera.zoom; // ズームしても線の見た目の太さを一定に保つ小技
+  ctx.beginPath();
+  for (let x = startX; x <= endX; x += step) {
+    ctx.moveTo(x, topLeft.y);
+    ctx.lineTo(x, bottomRight.y);
+  }
+  for (let y = startY; y <= endY; y += step) {
+    ctx.moveTo(topLeft.x, y);
+    ctx.lineTo(bottomRight.x, y);
+  }
+  ctx.stroke();
+
+  // 原点マーカー
+  ctx.strokeStyle = '#b0bac5';
+  ctx.lineWidth = 2 / camera.zoom;
+  ctx.beginPath();
+  ctx.moveTo(-20, 0); ctx.lineTo(20, 0);
+  ctx.moveTo(0, -20); ctx.lineTo(0, 20);
+  ctx.stroke();
+}
+
+function drawWorld() {
+  drawGrid();
+  // ウィジェットはワールド座標のまま描くだけ。変換は draw() がやってくれる
+  widgets.forEach((wg) => {
+    ctx.beginPath();
+    ctx.roundRect(wg.x, wg.y, wg.w, wg.h, 10);
+    ctx.fillStyle = wg.color;
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(wg.label, wg.x + wg.w / 2, wg.y + wg.h / 2);
+  });
+}
+
+// HUD(カメラ情報)は変換の外で描く = 画面に固定される
+let mouseScreen = { x: 0, y: 0 };
+function drawHud() {
+  const mw = screenToWorld(mouseScreen.x, mouseScreen.y);
+  const lines = [
+    `camera: x=${camera.x.toFixed(1)}  y=${camera.y.toFixed(1)}  zoom=${camera.zoom.toFixed(2)}`,
+    `mouse screen: (${mouseScreen.x.toFixed(0)}, ${mouseScreen.y.toFixed(0)})`,
+    `mouse world : (${mw.x.toFixed(1)}, ${mw.y.toFixed(1)})`,
+  ];
+  ctx.fillStyle = 'rgba(20, 30, 40, 0.75)';
+  ctx.fillRect(10, 10, 340, 70);
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  lines.forEach((s, i) => ctx.fillText(s, 20, 20 + i * 18));
+}
+
+// ============================================================
+// 描画: カメラの変換をかけてワールドを描く
+// ============================================================
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // DPR だけの状態にリセット
+  ctx.clearRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.scale(camera.zoom, camera.zoom); // 後に書いた translate が先に効く:
+  ctx.translate(-camera.x, -camera.y); // (wx - camera.x) * zoom の式と一致
+  drawWorld();
+  ctx.restore();
+
+  drawHud(); // 変換の外 = スクリーン座標で描く
+}
+
+// ============================================================
+// パン: マウスの移動量ぶんカメラを逆に動かす
+// ============================================================
+let isPanning = false;
+
+canvas.addEventListener('mousedown', () => {
+  isPanning = true;
+  canvas.classList.add('panning');
+});
+window.addEventListener('mouseup', () => {
+  isPanning = false;
+  canvas.classList.remove('panning');
+});
+canvas.addEventListener('mousemove', (e) => {
+  mouseScreen = { x: e.offsetX, y: e.offsetY };
+  if (isPanning) {
+    // スクリーン px の移動をワールドの移動に直すため zoom で割る
+    camera.x -= e.movementX / camera.zoom;
+    camera.y -= e.movementY / camera.zoom;
+  }
+  draw(); // HUD 更新のため常に描き直す
+});
+
+// ============================================================
+// ズーム: マウス直下のワールド座標が動かないように補正する
+// ============================================================
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault(); // ページスクロールを止める
+
+  const before = screenToWorld(e.offsetX, e.offsetY); // 1. ズーム前のマウス直下
+
+  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  camera.zoom = Math.min(8, Math.max(0.2, camera.zoom * factor)); // 2. 倍率変更+上下限
+
+  const after = screenToWorld(e.offsetX, e.offsetY);  // 3. ズーム後のマウス直下
+  camera.x += before.x - after.x;                     // 4. ずれた分だけカメラ移動
+  camera.y += before.y - after.y;
+
+  draw();
+}, { passive: false });
+
+window.addEventListener('resize', () => { setupCanvas(); draw(); });
+
+draw();
+</script>
+</body>
+</html>

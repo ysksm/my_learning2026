@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step07 演習: リサイズを実装する</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fff; border: 1px solid #999; display: block; user-select: none; }
+</style>
+</head>
+<body>
+<h1>Step07 演習</h1>
+<p>選択・移動は実装済み。ハンドルの表示とリサイズを実装してください。</p>
+<canvas id="canvas" style="width: 800px; height: 520px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+const HANDLE_SIZE = 8;
+const MIN_SIZE = 60;
+
+const widgets = [
+  { x: 80,  y: 80,  w: 240, h: 160, color: '#4a90d9', name: 'CPU' },
+  { x: 420, y: 160, w: 240, h: 160, color: '#5aa05a', name: 'Memory' },
+];
+
+let mode = 'idle'; // 'idle' | 'drag' | 'resize'
+let selected = null;
+let dragOffset = { x: 0, y: 0 };
+let activeHandle = null;
+let resizeStart = null;
+
+// --- ここまでの復習部分は完成済み ---
+function getMousePos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+function hitTest(wg, x, y) {
+  return x >= wg.x && x <= wg.x + wg.w && y >= wg.y && y <= wg.y + wg.h;
+}
+function findWidgetAt(x, y) {
+  for (let i = widgets.length - 1; i >= 0; i--) {
+    if (hitTest(widgets[i], x, y)) return widgets[i];
+  }
+  return null;
+}
+let needsRedraw = false;
+function requestRedraw() {
+  if (needsRedraw) return;
+  needsRedraw = true;
+  requestAnimationFrame(() => { needsRedraw = false; draw(); });
+}
+
+// TODO(1): getHandles(wg) を実装する
+// 8つのハンドルの中心座標を { name, x, y } の配列で返す。
+// name は 'nw','n','ne','e','se','s','sw','w'(CSS カーソル名と揃える)
+// 例: nw は (wg.x, wg.y)、n は (wg.x + wg.w/2, wg.y)、se は (wg.x+wg.w, wg.y+wg.h)
+function getHandles(wg) {
+  return []; // ← 直すこと
+}
+
+// TODO(2): findHandleAt(wg, x, y) を実装する
+// 各ハンドルの中心から ±(HANDLE_SIZE/2 + 3) の矩形に (x,y) が入っていれば
+// そのハンドルを返す。なければ null。
+function findHandleAt(wg, x, y) {
+  return null; // ← 直すこと
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  widgets.forEach((wg) => {
+    ctx.beginPath();
+    ctx.roundRect(wg.x, wg.y, wg.w, wg.h, 10);
+    ctx.fillStyle = wg.color;
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${wg.name} ${Math.round(wg.w)}×${Math.round(wg.h)}`,
+                 wg.x + wg.w / 2, wg.y + wg.h / 2);
+  });
+
+  if (selected) {
+    ctx.strokeStyle = '#2266cc';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(selected.x, selected.y, selected.w, selected.h);
+
+    // TODO(3): ハンドルを描く
+    // getHandles(selected) をループし、各中心に HANDLE_SIZE 角の
+    // 白い四角(枠は '#2266cc')を描く。
+    // 注意: (h.x, h.y) は中心なので HANDLE_SIZE/2 ずらして fillRect する
+  }
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  const p = getMousePos(e);
+
+  // TODO(4): 選択中ウィジェットのハンドル判定を「本体より先に」行う
+  //  - findHandleAt が当たったら:
+  //      mode = 'resize'、activeHandle = ハンドル名
+  //      resizeStart = { x,y,w,h(selected の現在値), mouseX: p.x, mouseY: p.y }
+  //      return する(下の本体判定に進ませない)
+
+  // 本体判定(完成済み)
+  const wg = findWidgetAt(p.x, p.y);
+  if (wg) {
+    selected = wg;
+    mode = 'drag';
+    dragOffset = { x: p.x - wg.x, y: p.y - wg.y };
+    widgets.splice(widgets.indexOf(wg), 1);
+    widgets.push(wg);
+  } else {
+    selected = null;
+  }
+  requestRedraw();
+});
+
+window.addEventListener('mousemove', (e) => {
+  const p = getMousePos(e);
+
+  if (mode === 'drag') { // 完成済み
+    selected.x = p.x - dragOffset.x;
+    selected.y = p.y - dragOffset.y;
+    requestRedraw();
+    return;
+  }
+
+  if (mode === 'resize') {
+    // TODO(5): リサイズ処理を実装する
+    // dx = p.x - resizeStart.mouseX, dy = p.y - resizeStart.mouseY を計算し、
+    // activeHandle の文字を includes で調べて辺を動かす:
+    //   'e' を含む → w = start.w + dx
+    //   's' を含む → h = start.h + dy
+    //   'w' を含む → x = start.x + dx, w = start.w - dx
+    //   'n' を含む → y = start.y + dy, h = start.h - dy
+    // 最後に requestRedraw()
+
+    // TODO(6)【発展】: 最小サイズ MIN_SIZE でクランプする
+    // w が小さくなりすぎたら w = MIN_SIZE。
+    // ただし 'w' 側のハンドルなら x = start.x + start.w - MIN_SIZE の補正も必要
+    // (h と 'n' 側も同様)
+    return;
+  }
+
+  // idle 時のカーソル(完成済み: findHandleAt が実装されれば動く)
+  if (selected) {
+    const h = findHandleAt(selected, p.x, p.y);
+    if (h) { canvas.style.cursor = `${h.name}-resize`; return; }
+  }
+  canvas.style.cursor = findWidgetAt(p.x, p.y) ? 'grab' : 'default';
+});
+
+window.addEventListener('mouseup', () => {
+  mode = 'idle';
+  activeHandle = null;
+  resizeStart = null;
+});
+
+draw();
+</script>
+</body>
+</html>

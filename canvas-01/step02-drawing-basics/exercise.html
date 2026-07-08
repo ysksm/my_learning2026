@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step02 演習: CPU 使用率カードを描く</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fff; border: 1px solid #999; display: block; }
+</style>
+</head>
+<body>
+<h1>Step02 演習: CPU 使用率カード</h1>
+<p>TODO を実装して、角丸カード + タイトル + 棒グラフを完成させてください。</p>
+<canvas id="canvas" style="width: 500px; height: 320px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// DPR 対応(Step01 の復習。ここは完成済み)
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width  = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  const card = { x: 40, y: 40, w: 320, h: 220 };
+
+  // TODO(1): カード背景を描く
+  //  - beginPath() → roundRect(card.x, card.y, card.w, card.h, 12) で下書き
+  //  - fillStyle を白にして fill()
+  //  - strokeStyle を '#c0c8d0'、lineWidth を 1.5 にして stroke()
+
+  // TODO(2): タイトル「CPU」をカードの左上に描く
+  //  - font: 'bold 16px sans-serif'
+  //  - textAlign = 'left', textBaseline = 'top'
+  //  - 位置はカード左上から (16, 14) ほど内側
+
+  // TODO(3): 棒グラフを描く
+  const data = [35, 60, 82, 45, 95, 70, 55]; // 0〜100 の値
+  //  - 棒の幅 32px、間隔 10px
+  //  - グラフの底 y = card.y + card.h - 16
+  //  - 値 100 のときの棒の高さ = 140px
+  //  - fillRect の y は「棒の上端」= 底 - 棒の高さ、であることに注意
+  //  - forEach でループして描く
+
+  // TODO(4)【発展】: 値が 80 以上の棒だけ fillStyle を '#d9534f'(赤) にする
+}
+
+draw();
+</script>
+</body>
+</html>

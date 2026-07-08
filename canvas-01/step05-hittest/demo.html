@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step05 Demo: ヒットテスト</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fff; border: 1px solid #999; display: block; }
+</style>
+</head>
+<body>
+<h1>Step05: ヒットテスト</h1>
+<p>図形にホバーすると明るくなり、クリックで選択(+最前面へ移動)。重なった部分をクリックして「上が勝つ」ことを確認。</p>
+<canvas id="canvas" style="width: 800px; height: 500px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+// 図形たち。配列の後ろほど「上」に描かれる
+// type: 'rect' か 'circle'。circle は x,y が中心、r が半径
+const shapes = [
+  { type: 'rect',   x: 80,  y: 80,  w: 220, h: 140, color: '#4a90d9', name: '青い矩形' },
+  { type: 'rect',   x: 220, y: 160, w: 220, h: 140, color: '#5aa05a', name: '緑の矩形' }, // 青と重なる
+  { type: 'circle', x: 560, y: 160, r: 80,          color: '#d9782a', name: 'オレンジの円' },
+  { type: 'rect',   x: 480, y: 300, w: 200, h: 120, color: '#b05ad9', name: '紫の矩形' },
+];
+
+let hovered = null;
+let selected = null;
+
+// ============================================================
+// ヒットテスト
+// ============================================================
+function hitTest(s, x, y) {
+  if (s.type === 'rect') {
+    // 「x が左右の端の間」かつ「y が上下の端の間」
+    return x >= s.x && x <= s.x + s.w &&
+           y >= s.y && y <= s.y + s.h;
+  }
+  if (s.type === 'circle') {
+    // 中心からの距離 <= 半径(sqrt を避けて両辺2乗で比較)
+    const dx = x - s.x, dy = y - s.y;
+    return dx * dx + dy * dy <= s.r * s.r;
+  }
+  return false;
+}
+
+// 上に描かれているもの優先 → 配列の「後ろから」走査する
+function findShapeAt(x, y) {
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    if (hitTest(shapes[i], x, y)) return shapes[i];
+  }
+  return null;
+}
+
+// ============================================================
+// 描画
+// ============================================================
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  shapes.forEach((s) => {
+    ctx.beginPath();
+    if (s.type === 'rect') ctx.roundRect(s.x, s.y, s.w, s.h, 8);
+    else ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+
+    ctx.fillStyle = s.color;
+    ctx.fill();
+
+    // ホバー中は白の半透明を重ねて「明るく」見せる(手軽なハイライト手法)
+    if (s === hovered) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.fill(); // 同じパスをもう一度塗る
+    }
+
+    // 選択中は少し外側に枠を描く
+    if (s === selected) {
+      ctx.strokeStyle = '#2266cc';
+      ctx.lineWidth = 3;
+      if (s.type === 'rect') ctx.strokeRect(s.x - 5, s.y - 5, s.w + 10, s.h + 10);
+      else {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r + 5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  });
+
+  // HUD
+  ctx.fillStyle = 'rgba(20,30,40,0.75)';
+  ctx.fillRect(10, H - 44, 420, 32);
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(
+    `hover: ${hovered ? hovered.name : '-'} / selected: ${selected ? selected.name : '-'}`,
+    22, H - 28);
+}
+
+// ============================================================
+// イベント
+// ============================================================
+canvas.addEventListener('mousemove', (e) => {
+  // offsetX/Y は「canvas 左上基準の CSS px」。DPR 対応済みなのでそのまま使える
+  hovered = findShapeAt(e.offsetX, e.offsetY);
+  canvas.style.cursor = hovered ? 'pointer' : 'default';
+  draw();
+});
+
+canvas.addEventListener('click', (e) => {
+  selected = findShapeAt(e.offsetX, e.offsetY);
+
+  // 選択したものを最前面へ: 配列から抜いて末尾に足すだけ
+  if (selected) {
+    shapes.splice(shapes.indexOf(selected), 1);
+    shapes.push(selected);
+  }
+  draw();
+});
+
+draw();
+</script>
+</body>
+</html>

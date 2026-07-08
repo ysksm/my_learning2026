@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step09: ミニダッシュボード(総合演習)</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { font-family: sans-serif; background: #eef1f5; display: flex; flex-direction: column; }
+  header { padding: 8px 16px; font-size: 13px; color: #445; background: #fff; border-bottom: 1px solid #ccc; }
+  canvas { flex: 1; display: block; user-select: none; background: #f7f9fb; }
+</style>
+</head>
+<body>
+<header>
+  <b>Step09 ミニダッシュボード</b> —
+  空き地ドラッグ: パン / ホイール: ズーム / クリック: 選択 / ドラッグ: 移動 / ハンドル: リサイズ
+</header>
+<canvas id="canvas"></canvas>
+
+<script>
+'use strict';
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+let W = 0, H = 0;
+
+// ===== Step01: DPR 対応 + リサイズ追従 ============================
+function setupCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  W = rect.width;
+  H = rect.height;
+}
+window.addEventListener('resize', setupCanvas);
+setupCanvas();
+
+// ===== Step04: カメラと座標変換 ===================================
+const camera = { x: -60, y: -60, zoom: 1 };
+
+function screenToWorld(sx, sy) {
+  return { x: sx / camera.zoom + camera.x, y: sy / camera.zoom + camera.y };
+}
+function worldToScreen(wx, wy) {
+  return { x: (wx - camera.x) * camera.zoom, y: (wy - camera.y) * camera.zoom };
+}
+
+// ===== 状態(座標はすべてワールド座標) =============================
+const widgets = [
+  { type: 'clock',   x: 40,  y: 40,  w: 220, h: 220 },
+  { type: 'bars',    x: 320, y: 40,  w: 320, h: 220, title: 'メモリ使用量',
+    data: [40, 65, 80, 55, 90, 72] },
+  { type: 'counter', x: 320, y: 300, w: 320, h: 140, title: 'アクティブユーザー', value: 1247 },
+  { type: 'bars',    x: 40,  y: 300, w: 240, h: 200, title: 'CPU',
+    data: [35, 60, 82, 45, 95, 70, 55] },
+];
+
+// Step07 の状態機械 + 'pan' モード
+let mode = 'idle'; // 'idle' | 'pan' | 'drag' | 'resize'
+let selected = null;
+let hovered = null;
+let dragOffset = { x: 0, y: 0 };
+let activeHandle = null;
+let resizeStart = null;
+let mouseScreen = { x: 0, y: 0 };
+
+const HANDLE_SIZE = 8; // スクリーン px(ズームしても見た目一定にする)
+const MIN_SIZE = 80;   // ワールド px
+
+// ===== Step05/07: ヒットテスト ====================================
+function hitTest(wg, x, y) { // x, y はワールド座標
+  return x >= wg.x && x <= wg.x + wg.w && y >= wg.y && y <= wg.y + wg.h;
+}
+function findWidgetAt(x, y) {
+  for (let i = widgets.length - 1; i >= 0; i--) {
+    if (hitTest(widgets[i], x, y)) return widgets[i];
+  }
+  return null;
+}
+
+function getHandles(wg) {
+  const { x, y, w, h } = wg;
+  return [
+    { name: 'nw', x: x,         y: y         },
+    { name: 'n',  x: x + w / 2, y: y         },
+    { name: 'ne', x: x + w,     y: y         },
+    { name: 'e',  x: x + w,     y: y + h / 2 },
+    { name: 'se', x: x + w,     y: y + h     },
+    { name: 's',  x: x + w / 2, y: y + h     },
+    { name: 'sw', x: x,         y: y + h     },
+    { name: 'w',  x: x,         y: y + h / 2 },
+  ];
+}
+
+function findHandleAt(wg, x, y) { // x, y はワールド座標
+  // ハンドルの見た目はスクリーン px 固定 → 判定半径はワールドでは / zoom する
+  const R = (HANDLE_SIZE / 2 + 4) / camera.zoom;
+  return getHandles(wg).find(h =>
+    x >= h.x - R && x <= h.x + R && y >= h.y - R && y <= h.y + R
+  ) || null;
+}
+
+// ===== Step02/03: ウィジェット描画(部品化) ========================
+// 各レンダラは「(0,0) が自分の左上」のローカル座標で wg.w × wg.h の箱に描く
+
+function drawCardBase(wg) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(30, 50, 70, 0.15)'; // Step08: 影
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 4;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, wg.w, wg.h, 12);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = '#d5dce4';
+  ctx.lineWidth = 1;
+  ctx.stroke(); // roundRect のパスが残っているのでそのまま枠線
+}
+
+function drawTitle(wg) {
+  if (!wg.title) return;
+  ctx.fillStyle = '#556';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(wg.title, 14, 12);
+}
+
+const WIDGET_RENDERERS = {
+  // --- アナログ時計(Step03: 回転のイディオム) ---
+  clock(wg) {
+    drawCardBase(wg);
+    ctx.save();
+    ctx.translate(wg.w / 2, wg.h / 2); // 中心へ
+    const r = Math.min(wg.w, wg.h) / 2 - 22;
+
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.strokeStyle = '#2b3a4a';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    for (let i = 0; i < 12; i++) {
+      ctx.save();
+      ctx.rotate((i / 12) * Math.PI * 2);
+      ctx.beginPath();
+      ctx.moveTo(0, -r);
+      ctx.lineTo(0, -r + 8);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    const t = new Date();
+    const sec = t.getSeconds() + t.getMilliseconds() / 1000;
+    const min = t.getMinutes() + sec / 60;
+    const hour = (t.getHours() % 12) + min / 60;
+
+    const hand = (angle, len, width, color) => {
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, r * 0.1);
+      ctx.lineTo(0, -len);
+      ctx.stroke();
+      ctx.restore();
+    };
+    hand((hour / 12) * Math.PI * 2, r * 0.5, 4, '#2b3a4a');
+    hand((min / 60) * Math.PI * 2, r * 0.75, 2.5, '#2b3a4a');
+    hand((sec / 60) * Math.PI * 2, r * 0.85, 1.2, '#d9534f');
+    ctx.restore();
+  },
+
+  // --- 棒グラフ(Step02) ---
+  bars(wg) {
+    drawCardBase(wg);
+    drawTitle(wg);
+    const pad = 14;
+    const bottom = wg.h - pad;
+    const chartH = wg.h - 60;
+    const n = wg.data.length;
+    const gap = 8;
+    const barW = (wg.w - pad * 2 - gap * (n - 1)) / n; // 幅に応じて棒の太さを変える
+
+    wg.data.forEach((v, i) => {
+      const bh = chartH * (v / 100);
+      ctx.fillStyle = v >= 80 ? '#d9534f' : '#4a90d9';
+      ctx.fillRect(pad + i * (barW + gap), bottom - bh, barW, bh);
+    });
+  },
+
+  // --- カウンタ(Step02: テキスト配置) ---
+  counter(wg) {
+    drawCardBase(wg);
+    drawTitle(wg);
+    ctx.fillStyle = '#223';
+    ctx.font = `bold ${Math.min(48, wg.h * 0.35)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(wg.value.toLocaleString(), wg.w / 2, wg.h / 2 + 12);
+  },
+};
+
+function drawWidget(wg) {
+  ctx.save();
+  ctx.translate(wg.x, wg.y); // 位置は親が面倒を見る(Step03 のイディオム)
+  WIDGET_RENDERERS[wg.type](wg);
+  ctx.restore();
+}
+
+// ===== Step04: グリッド(見えている範囲だけ) =======================
+function drawGrid() {
+  const step = 50;
+  const tl = screenToWorld(0, 0);
+  const br = screenToWorld(W, H);
+  const startX = Math.floor(tl.x / step) * step;
+  const startY = Math.floor(tl.y / step) * step;
+
+  ctx.strokeStyle = '#e3e9f0';
+  ctx.lineWidth = 1 / camera.zoom; // 見た目の太さを一定に
+  ctx.beginPath();
+  for (let x = startX; x <= br.x; x += step) {
+    ctx.moveTo(x, tl.y); ctx.lineTo(x, br.y);
+  }
+  for (let y = startY; y <= br.y; y += step) {
+    ctx.moveTo(tl.x, y); ctx.lineTo(br.x, y);
+  }
+  ctx.stroke();
+}
+
+// ===== 選択枠とハンドル =============================================
+function drawSelection(wg) {
+  const lw = 1.5 / camera.zoom;      // 線幅もハンドルも見た目一定に(/ zoom)
+  const hs = HANDLE_SIZE / camera.zoom;
+
+  ctx.strokeStyle = '#2266cc';
+  ctx.lineWidth = lw;
+  ctx.strokeRect(wg.x, wg.y, wg.w, wg.h);
+
+  getHandles(wg).forEach((h) => {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(h.x - hs / 2, h.y - hs / 2, hs, hs);
+    ctx.strokeRect(h.x - hs / 2, h.y - hs / 2, hs, hs);
+  });
+}
+
+// ===== 描画本体 =====================================================
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // DPR だけの状態にリセット(Step03)
+  ctx.clearRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.scale(camera.zoom, camera.zoom);    // カメラの変換(Step04)
+  ctx.translate(-camera.x, -camera.y);
+
+  drawGrid();
+  widgets.forEach((wg) => {
+    drawWidget(wg);
+    if (wg === hovered && wg !== selected && mode === 'idle') {
+      // Step08: 半透明のホバーハイライト
+      ctx.beginPath();
+      ctx.roundRect(wg.x, wg.y, wg.w, wg.h, 12);
+      ctx.fillStyle = 'rgba(74, 144, 217, 0.08)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(74, 144, 217, 0.5)';
+      ctx.lineWidth = 1.5 / camera.zoom;
+      ctx.stroke();
+    }
+  });
+  if (selected) drawSelection(selected);
+
+  ctx.restore();
+
+  // HUD はスクリーン座標で(変換の外)
+  const mw = screenToWorld(mouseScreen.x, mouseScreen.y);
+  ctx.fillStyle = 'rgba(20, 30, 40, 0.7)'; // Step08: 半透明パネル
+  ctx.beginPath();
+  ctx.roundRect(10, H - 40, 460, 30, 6);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(
+    `zoom ${camera.zoom.toFixed(2)} | world (${mw.x.toFixed(0)}, ${mw.y.toFixed(0)}) | mode ${mode}`,
+    22, H - 25);
+}
+
+// 時計が動くので常時ループ(要件によっては Step06 の requestRedraw 方式でも良い)
+function loop() {
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ===== 入力(状態を変えるだけ。描画はループに任せる) ================
+function getMousePos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  const s = getMousePos(e);
+  const p = screenToWorld(s.x, s.y); // 最初にワールドへ変換(鉄則)
+
+  // 優先 1: 選択中ウィジェットのハンドル → resize
+  if (selected) {
+    const h = findHandleAt(selected, p.x, p.y);
+    if (h) {
+      mode = 'resize';
+      activeHandle = h.name;
+      resizeStart = { x: selected.x, y: selected.y, w: selected.w, h: selected.h,
+                      mouseX: p.x, mouseY: p.y };
+      return;
+    }
+  }
+
+  // 優先 2: ウィジェット本体 → 選択 + drag
+  const wg = findWidgetAt(p.x, p.y);
+  if (wg) {
+    selected = wg;
+    mode = 'drag';
+    dragOffset = { x: p.x - wg.x, y: p.y - wg.y }; // ワールド座標のオフセット
+    widgets.splice(widgets.indexOf(wg), 1);
+    widgets.push(wg); // 最前面へ
+    return;
+  }
+
+  // 優先 3: 空き地 → 選択解除して pan
+  selected = null;
+  mode = 'pan';
+});
+
+window.addEventListener('mousemove', (e) => {
+  mouseScreen = getMousePos(e);
+  const p = screenToWorld(mouseScreen.x, mouseScreen.y);
+
+  if (mode === 'pan') {
+    camera.x -= e.movementX / camera.zoom;
+    camera.y -= e.movementY / camera.zoom;
+    return;
+  }
+
+  if (mode === 'drag') {
+    selected.x = p.x - dragOffset.x;
+    selected.y = p.y - dragOffset.y;
+    return;
+  }
+
+  if (mode === 'resize') {
+    const dx = p.x - resizeStart.mouseX; // ワールド座標での総移動量
+    const dy = p.y - resizeStart.mouseY;
+    const wg = selected, st = resizeStart;
+
+    if (activeHandle.includes('e')) wg.w = st.w + dx;
+    if (activeHandle.includes('s')) wg.h = st.h + dy;
+    if (activeHandle.includes('w')) { wg.x = st.x + dx; wg.w = st.w - dx; }
+    if (activeHandle.includes('n')) { wg.y = st.y + dy; wg.h = st.h - dy; }
+
+    if (wg.w < MIN_SIZE) {
+      if (activeHandle.includes('w')) wg.x = st.x + st.w - MIN_SIZE;
+      wg.w = MIN_SIZE;
+    }
+    if (wg.h < MIN_SIZE) {
+      if (activeHandle.includes('n')) wg.y = st.y + st.h - MIN_SIZE;
+      wg.h = MIN_SIZE;
+    }
+    return;
+  }
+
+  // idle: ホバーとカーソル
+  hovered = findWidgetAt(p.x, p.y);
+  if (selected) {
+    const h = findHandleAt(selected, p.x, p.y);
+    if (h) { canvas.style.cursor = `${h.name}-resize`; return; }
+  }
+  canvas.style.cursor = hovered ? 'grab' : 'default';
+});
+
+window.addEventListener('mouseup', () => {
+  mode = 'idle';
+  activeHandle = null;
+  resizeStart = null;
+});
+
+// Step04: マウス位置中心ズーム
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const s = getMousePos(e);
+  const before = screenToWorld(s.x, s.y);
+  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  camera.zoom = Math.min(6, Math.max(0.25, camera.zoom * factor));
+  const after = screenToWorld(s.x, s.y);
+  camera.x += before.x - after.x;
+  camera.y += before.y - after.y;
+}, { passive: false });
+
+loop();
+</script>
+</body>
+</html>

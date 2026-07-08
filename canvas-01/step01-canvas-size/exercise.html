@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step01 演習: くっきり表示 + リサイズ追従</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #f5f5f5; }
+  /* 表示サイズは CSS で決めてある。バッファサイズはあなたが JS で合わせる */
+  canvas { width: 100%; height: 400px; background: #fff; border: 1px solid #999; display: block; }
+</style>
+</head>
+<body>
+<h1>Step01 演習</h1>
+<p>今はぼやけて表示されています。TODO を実装して「くっきり + リサイズ追従」にしてください。</p>
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function setupCanvas() {
+  // TODO(1): DPR 対応をする
+  //  1. window.devicePixelRatio を取得する(なければ 1)
+  //  2. canvas.getBoundingClientRect() で CSS 上の表示サイズを取得する
+  //  3. canvas.width / canvas.height を「表示サイズ × DPR」にする
+  //  4. ctx.scale(dpr, dpr) で座標系を CSS px 基準に戻す
+}
+
+function draw() {
+  const rect = canvas.getBoundingClientRect();
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  // TODO(2): 円が常にキャンバスの中央に来るように cx, cy を計算する
+  const cx = 100; // ← 仮の固定値。直すこと
+  const cy = 100;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, 80, 0, Math.PI * 2);
+  ctx.fillStyle = '#4a90d9';
+  ctx.fill();
+
+  ctx.fillStyle = '#222';
+  ctx.font = '20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('くっきり表示できた?', cx, cy + 130);
+}
+
+// TODO(3): ウィンドウの resize イベントで setupCanvas() と draw() を呼ぶ
+//  ヒント: なぜ draw() も呼び直す必要があるのか、README の説明を思い出そう
+
+setupCanvas();
+draw();
+</script>
+</body>
+</html>

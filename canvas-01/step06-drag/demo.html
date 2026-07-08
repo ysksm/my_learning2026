@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step06 Demo: ドラッグ移動</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fff; border: 1px solid #999; display: block; user-select: none; }
+</style>
+</head>
+<body>
+<h1>Step06: ドラッグでウィジェットを移動</h1>
+<p>カードの端を掴んでもワープしない(オフセット)。勢いよく枠外までドラッグしても追従する(window リスナ)。</p>
+<canvas id="canvas" style="width: 800px; height: 520px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+const widgets = [
+  { x: 60,  y: 60,  w: 220, h: 140, color: '#4a90d9', name: 'CPU' },
+  { x: 340, y: 120, w: 220, h: 140, color: '#5aa05a', name: 'Memory' },
+  { x: 180, y: 300, w: 220, h: 140, color: '#d9782a', name: 'Network' },
+];
+
+// ドラッグの状態
+let dragging = null;              // ドラッグ中のウィジェット(null = していない)
+let dragOffset = { x: 0, y: 0 };  // ウィジェット左上 → 掴んだ点、のベクトル
+let hovered = null;
+
+// 統計(mousemove と draw の回数差を見るため)
+let moveCount = 0, drawCount = 0;
+
+// ============================================================
+// window のイベントでも使える座標取得(offsetX は canvas 外で使えない)
+// ============================================================
+function getMousePos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function hitTest(wg, x, y) {
+  return x >= wg.x && x <= wg.x + wg.w && y >= wg.y && y <= wg.y + wg.h;
+}
+
+function findWidgetAt(x, y) {
+  for (let i = widgets.length - 1; i >= 0; i--) {
+    if (hitTest(widgets[i], x, y)) return widgets[i];
+  }
+  return null;
+}
+
+// ============================================================
+// 描画: フレームに1回だけ実行されるよう間引く
+// ============================================================
+let needsRedraw = false;
+function requestRedraw() {
+  if (needsRedraw) return;         // 予約済みなら何もしない
+  needsRedraw = true;
+  requestAnimationFrame(() => {    // 次の画面更新タイミングで…
+    needsRedraw = false;
+    draw();                        // …1回だけ描く
+  });
+}
+
+function draw() {
+  drawCount++;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  widgets.forEach((wg) => {
+    // ドラッグ中のカードには影を付けて「浮いている」感を出す
+    if (wg === dragging) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetY = 6;
+    }
+
+    ctx.beginPath();
+    ctx.roundRect(wg.x, wg.y, wg.w, wg.h, 10);
+    ctx.fillStyle = wg.color;
+    ctx.fill();
+
+    if (wg === dragging) ctx.restore(); // 影の設定を後続に漏らさない
+
+    if (wg === hovered && wg !== dragging) {
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(wg.name, wg.x + wg.w / 2, wg.y + wg.h / 2);
+  });
+
+  // 統計 HUD
+  ctx.fillStyle = 'rgba(20,30,40,0.75)';
+  ctx.fillRect(10, H - 40, 380, 28);
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`mousemove: ${moveCount} 回 / draw: ${drawCount} 回`, 20, H - 26);
+}
+
+// ============================================================
+// イベント: 開始は canvas、追跡・終了は window に張る
+// ============================================================
+canvas.addEventListener('mousedown', (e) => {
+  e.preventDefault(); // テキスト選択などの既定動作を抑止
+  const p = getMousePos(e);
+  const wg = findWidgetAt(p.x, p.y);
+  if (!wg) return;
+
+  dragging = wg;
+  // 「左上からどこを掴んだか」を記録 → 移動中この分を引くとワープしない
+  dragOffset = { x: p.x - wg.x, y: p.y - wg.y };
+
+  // 掴んだものは最前面へ
+  widgets.splice(widgets.indexOf(wg), 1);
+  widgets.push(wg);
+
+  canvas.style.cursor = 'grabbing';
+  requestRedraw();
+});
+
+window.addEventListener('mousemove', (e) => {
+  moveCount++;
+  const p = getMousePos(e);
+
+  if (dragging) {
+    // 掴んだ点がマウス直下に来るように位置を決める
+    dragging.x = p.x - dragOffset.x;
+    dragging.y = p.y - dragOffset.y;
+  } else {
+    hovered = findWidgetAt(p.x, p.y);
+    canvas.style.cursor = hovered ? 'grab' : 'default';
+  }
+  requestRedraw(); // 状態だけ更新して描画はフレーム同期に任せる
+});
+
+window.addEventListener('mouseup', () => {
+  if (!dragging) return;
+  dragging = null;
+  canvas.style.cursor = hovered ? 'grab' : 'default';
+  requestRedraw();
+});
+
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step08 演習: 半透明の UI 表現</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { border: 1px solid #999; display: block; }
+  .checker {
+    background-image:
+      linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%),
+      linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    background-color: #fff;
+  }
+  label { font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>Step08 演習: 無効状態カードとトースト通知</h1>
+<label>トーストの透明度: <input type="range" id="slider" min="0" max="1" step="0.01" value="0.85"></label>
+<canvas id="canvas" class="checker" style="width: 760px; height: 420px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+const slider = document.getElementById('slider');
+let toastAlpha = 0.85;
+
+// 通常のカードを描く(完成済み。無効状態の表現に再利用する)
+function drawCard(x, y, title, value) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, 220, 130, 10);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.strokeStyle = '#c0c8d0';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = '#556';
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(title, x + 16, y + 14);
+
+  ctx.fillStyle = '#223';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillText(value, x + 16, y + 55);
+}
+
+// TODO(2)(3): トーストを「丸ごと半透明 + 影付き」で描く関数を実装する
+// 手順:
+//  a. ctx.save()
+//  b. ctx.globalAlpha = alpha   ← 部品全体に効かせる(rgba 個別指定にしないこと!)
+//  c. 影を設定(shadowColor 'rgba(0,0,0,0.35)', shadowBlur 14, shadowOffsetY 5)
+//  d. roundRect(x, y, 300, 60, 10) を '#2b3a4a' で塗る
+//  e. ctx.shadowColor = 'transparent' で影を解除(文字に影を付けないため)
+//  f. 緑の丸(x+30, y+30, 半径12, '#5aa05a')と白文字「保存しました」(x+55, y+30)
+//  g. ctx.restore()
+function drawToast(x, y, alpha) {
+
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  // カード2枚(左: 有効 / 右: これから無効状態にする)
+  drawCard(40, 60, 'アクティブユーザー', '1,247');
+  drawCard(300, 60, 'エラー数(無効)', '32');
+
+  // TODO(1): 右のカード (300, 60, 220, 130) を「無効状態」に見せる
+  //  カードと同じ範囲に roundRect を作り、'rgba(255,255,255,0.6)' で上塗りする
+  //  → 文字まで一括で薄くなる(これが rgba 上塗りの便利な使い方)
+
+  // トースト(drawToast が実装されれば表示される)
+  drawToast(40, 280, toastAlpha);
+}
+
+// TODO(4)【発展】: スライダーの input イベントで
+// toastAlpha = Number(slider.value) に更新して draw() する
+
+draw();
+</script>
+</body>
+</html>

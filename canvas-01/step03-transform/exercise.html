@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step03 演習: 回転カードと save/restore</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fff; border: 1px solid #999; display: block; }
+</style>
+</head>
+<body>
+<h1>Step03 演習</h1>
+<p>drawCard() を完成させ、角度の違う3枚のカードを互いに影響なく描いてください。</p>
+<canvas id="canvas" style="width: 800px; height: 620px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+// TODO(1): drawCard を完成させる
+// (x, y) 左上、幅 w、高さ h のカードを、カード中心を軸に angle ラジアン回転して描く。
+// 手順(README の「その場で回すイディオム」):
+//   a. ctx.save()
+//   b. ctx.translate( カードの中心座標 )
+//   c. ctx.rotate(angle)
+//   d. roundRect(-w/2, -h/2, w, h, 10) で描く(中心が原点になっている)
+//      塗り: '#4a90d9'、中央に白文字 'CARD'(textAlign/textBaseline を使う)
+//   e. ctx.restore()
+function drawCard(x, y, w, h, angle) {
+
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // DPR だけの状態にリセット
+  ctx.clearRect(0, 0, W, H);
+
+  // TODO(2): 3枚描く
+  //   drawCard(60, 60, 140, 90, 0)
+  //   drawCard(260, 60, 140, 90, Math.PI / 12)
+  //   drawCard(460, 60, 140, 90, -Math.PI / 8)
+  // 実験: drawCard 内の restore をコメントアウトして何が起きるか見てみよう
+
+  // TODO(3)【発展】: for ループで12枚のカードを円形に並べる
+  //   中心 (400, 420)、半径 150
+  //   i 枚目の角度 a = (i / 12) * Math.PI * 2
+  //   位置: x = 400 + cos(a) * 150, y = 420 + sin(a) * 150
+  //   カードが円の中心を向くように angle = a + Math.PI / 2 で回す
+}
+
+draw();
+</script>
+</body>
+</html>

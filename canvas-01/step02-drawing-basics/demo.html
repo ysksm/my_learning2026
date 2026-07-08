@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step02 Demo: 描画の基本でウィジェットカードを作る</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fff; border: 1px solid #999; display: block; }
+</style>
+</head>
+<body>
+<h1>Step02: 基本図形だけで「ウィジェットカード」を描く</h1>
+<p>ダッシュボードの部品は結局「角丸矩形 + 線 + テキスト」の組み合わせ、というデモ。</p>
+<canvas id="canvas" style="width: 800px; height: 420px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// --- Step01 で学んだ DPR 対応(以降のステップでは毎回この形で始める) ---
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width  = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+// ============================================================
+// カード1: 棒グラフウィジェット
+// ============================================================
+function drawBarCard(x, y, w, h) {
+  // --- カード背景: 角丸矩形 ---
+  ctx.beginPath();               // 下書きを白紙に(忘れると前のパスが混ざる)
+  ctx.roundRect(x, y, w, h, 12); // 角丸半径 12px の「下書き」
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();                    // 同じパスを塗り、
+  ctx.strokeStyle = '#c0c8d0';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();                  // さらに枠線でもなぞれる
+
+  // --- タイトル ---
+  ctx.fillStyle = '#334';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'left';        // x をテキストの左端に合わせる
+  ctx.textBaseline = 'top';      // y をテキストの上端に合わせる
+  ctx.fillText('メモリ使用量', x + 16, y + 14);
+
+  // --- 棒グラフ: fillRect のループ + グラデーション ---
+  const data = [40, 65, 80, 55, 90, 72];
+  const chartBottom = y + h - 16; // グラフの底の y
+  const chartH = h - 70;          // 棒の最大の高さ
+  const barW = 28, gap = 12;
+
+  // グラデーションは fillStyle に入れられる
+  const grad = ctx.createLinearGradient(0, chartBottom - chartH, 0, chartBottom);
+  grad.addColorStop(0, '#4a90d9');
+  grad.addColorStop(1, '#9cc3ea');
+  ctx.fillStyle = grad;
+
+  data.forEach((v, i) => {
+    const barH = chartH * (v / 100);
+    // 注意: y は「棒の上端」なので bottom から高さを引く
+    ctx.fillRect(x + 16 + i * (barW + gap), chartBottom - barH, barW, barH);
+  });
+}
+
+// ============================================================
+// カード2: 折れ線グラフウィジェット(パスの練習)
+// ============================================================
+function drawLineCard(x, y, w, h) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 12);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = '#c0c8d0';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = '#334';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('トラフィック', x + 16, y + 14);
+
+  // --- 折れ線: moveTo で始点、あとは lineTo でつなぐ ---
+  const data = [20, 45, 30, 70, 55, 85, 60, 92];
+  const left = x + 16, right = x + w - 16;
+  const bottom = y + h - 16, top = y + 50;
+  const stepX = (right - left) / (data.length - 1);
+
+  ctx.beginPath(); // カードの roundRect パスを引きずらないように白紙化
+  data.forEach((v, i) => {
+    const px = left + i * stepX;
+    const py = bottom - (bottom - top) * (v / 100);
+    if (i === 0) ctx.moveTo(px, py); // 最初の点はペンの移動
+    else ctx.lineTo(px, py);         // 2点目以降は線の下書き
+  });
+  ctx.strokeStyle = '#d9782a';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round'; // 折れ点を丸く
+  ctx.stroke();
+
+  // データ点に丸を打つ: 円ごとに beginPath が必要
+  data.forEach((v, i) => {
+    const px = left + i * stepX;
+    const py = bottom - (bottom - top) * (v / 100);
+    ctx.beginPath();                    // ← これを忘れると全円がつながる
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#d9782a';
+    ctx.fill();
+  });
+}
+
+// ============================================================
+// カード3: 数値ウィジェット(テキスト配置の練習)
+// ============================================================
+function drawNumberCard(x, y, w, h) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 12);
+  ctx.fillStyle = '#2b3a4a'; // ダークカード
+  ctx.fill();
+
+  // 中央揃えのテキスト: textAlign と textBaseline を center/middle に
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = '#9fb3c8';
+  ctx.font = '14px sans-serif';
+  ctx.fillText('アクティブユーザー', x + w / 2, y + 30);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 44px sans-serif';
+  ctx.fillText('1,247', x + w / 2, y + h / 2 + 10);
+
+  // measureText: 描かずに幅を測る → 下線の長さに使う
+  const m = ctx.measureText('1,247');
+  ctx.strokeStyle = '#4a90d9';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x + w / 2 - m.width / 2, y + h / 2 + 40);
+  ctx.lineTo(x + w / 2 + m.width / 2, y + h / 2 + 40);
+  ctx.stroke();
+}
+
+// ============================================================
+// 全体を描く。後から描いたものが上に重なる(描画順 = 重なり順)
+// ============================================================
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // 背景(最初に描く = 一番下)
+  ctx.fillStyle = '#eef1f5';
+  ctx.fillRect(0, 0, W, H);
+
+  drawBarCard(30, 30, 280, 220);
+  drawLineCard(340, 30, 300, 220);
+  drawNumberCard(30, 280, 280, 110);
+}
+
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step06 演習: ドラッグ移動を実装する</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fff; border: 1px solid #999; display: block; user-select: none; }
+</style>
+</head>
+<body>
+<h1>Step06 演習</h1>
+<p>ウィジェットをドラッグで移動できるようにしてください。掴んだ位置がずれない(ワープしない)こと。</p>
+<canvas id="canvas" style="width: 800px; height: 520px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+const widgets = [
+  { x: 60,  y: 60,  w: 220, h: 140, color: '#4a90d9', name: 'CPU' },
+  { x: 340, y: 120, w: 220, h: 140, color: '#5aa05a', name: 'Memory' },
+  { x: 180, y: 300, w: 220, h: 140, color: '#d9782a', name: 'Network' },
+];
+
+let dragging = null;
+let dragOffset = { x: 0, y: 0 };
+
+// Step05 の復習(完成済み)
+function hitTest(wg, x, y) {
+  return x >= wg.x && x <= wg.x + wg.w && y >= wg.y && y <= wg.y + wg.h;
+}
+function findWidgetAt(x, y) {
+  for (let i = widgets.length - 1; i >= 0; i--) {
+    if (hitTest(widgets[i], x, y)) return widgets[i];
+  }
+  return null;
+}
+
+// 描画の間引き(完成済み。イベントからは requestRedraw() を呼ぶこと)
+let needsRedraw = false;
+function requestRedraw() {
+  if (needsRedraw) return;
+  needsRedraw = true;
+  requestAnimationFrame(() => { needsRedraw = false; draw(); });
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  widgets.forEach((wg) => {
+    ctx.beginPath();
+    ctx.roundRect(wg.x, wg.y, wg.w, wg.h, 10);
+    ctx.fillStyle = wg.color;
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(wg.name, wg.x + wg.w / 2, wg.y + wg.h / 2);
+  });
+}
+
+// TODO(1): getMousePos を実装する
+// window に張ったイベントでも使えるように、
+// e.clientX/Y から canvas.getBoundingClientRect() の left/top を引く
+function getMousePos(e) {
+  return { x: 0, y: 0 }; // ← 直すこと
+}
+
+// TODO(2): mousedown(canvas に張る)
+//  - e.preventDefault()
+//  - getMousePos で座標を取り、findWidgetAt でヒットテスト
+//  - 当たったら dragging にセットし、dragOffset を計算する
+//    dragOffset = { x: マウスx - wg.x, y: マウスy - wg.y }
+//  - requestRedraw()
+
+// TODO(3): mousemove(window に張る! 理由は README 参照)
+//  - dragging が null なら何もしない
+//  - dragging.x = マウスx - dragOffset.x(y も同様)
+//  - requestRedraw()
+
+// TODO(4): mouseup(window に張る)
+//  - dragging = null に戻す
+
+// TODO(5)【発展】: ウィジェットが canvas の外に出ないようにする
+//  ヒント: dragging.x = Math.max(0, Math.min(W - dragging.w, 計算した x))
+
+draw();
+</script>
+</body>
+</html>

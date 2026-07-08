@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step07 Demo: リサイズハンドル</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fff; border: 1px solid #999; display: block; user-select: none; }
+</style>
+</head>
+<body>
+<h1>Step07: リサイズハンドル</h1>
+<p>クリックで選択 → 8つのハンドルでリサイズ。ドラッグで移動もできる(Step06 と共存)。最小サイズ 60px。</p>
+<canvas id="canvas" style="width: 800px; height: 520px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+const HANDLE_SIZE = 8;
+const MIN_SIZE = 60;
+
+const widgets = [
+  { x: 80,  y: 80,  w: 240, h: 160, color: '#4a90d9', name: 'CPU' },
+  { x: 420, y: 160, w: 240, h: 160, color: '#5aa05a', name: 'Memory' },
+];
+
+// ============================================================
+// 状態機械: idle(何もしていない) / drag(移動中) / resize(リサイズ中)
+// ============================================================
+let mode = 'idle';
+let selected = null;
+let dragOffset = { x: 0, y: 0 };
+let activeHandle = null;  // 'nw' | 'n' | ... リサイズ中のハンドル名
+let resizeStart = null;   // リサイズ開始時の矩形とマウス位置
+
+function getMousePos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function hitTest(wg, x, y) {
+  return x >= wg.x && x <= wg.x + wg.w && y >= wg.y && y <= wg.y + wg.h;
+}
+function findWidgetAt(x, y) {
+  for (let i = widgets.length - 1; i >= 0; i--) {
+    if (hitTest(widgets[i], x, y)) return widgets[i];
+  }
+  return null;
+}
+
+// ============================================================
+// ハンドル: 名前は CSS カーソル名(nw-resize など)と揃えてある
+// ============================================================
+function getHandles(wg) {
+  const { x, y, w, h } = wg;
+  return [
+    { name: 'nw', x: x,         y: y         },
+    { name: 'n',  x: x + w / 2, y: y         },
+    { name: 'ne', x: x + w,     y: y         },
+    { name: 'e',  x: x + w,     y: y + h / 2 },
+    { name: 'se', x: x + w,     y: y + h     },
+    { name: 's',  x: x + w / 2, y: y + h     },
+    { name: 'sw', x: x,         y: y + h     },
+    { name: 'w',  x: x,         y: y + h / 2 },
+  ];
+}
+
+function findHandleAt(wg, x, y) {
+  const R = HANDLE_SIZE / 2 + 3; // 見た目より少し大きめに判定(掴みやすさ)
+  return getHandles(wg).find(h =>
+    x >= h.x - R && x <= h.x + R && y >= h.y - R && y <= h.y + R
+  ) || null;
+}
+
+// ============================================================
+// 描画
+// ============================================================
+let needsRedraw = false;
+function requestRedraw() {
+  if (needsRedraw) return;
+  needsRedraw = true;
+  requestAnimationFrame(() => { needsRedraw = false; draw(); });
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  widgets.forEach((wg) => {
+    ctx.beginPath();
+    ctx.roundRect(wg.x, wg.y, wg.w, wg.h, 10);
+    ctx.fillStyle = wg.color;
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${wg.name} ${Math.round(wg.w)}×${Math.round(wg.h)}`,
+                 wg.x + wg.w / 2, wg.y + wg.h / 2);
+  });
+
+  // 選択中のウィジェットに枠とハンドルを描く(本体の後 = 上に重なる)
+  if (selected) {
+    ctx.strokeStyle = '#2266cc';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(selected.x, selected.y, selected.w, selected.h);
+
+    getHandles(selected).forEach((h) => {
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#2266cc';
+      // ハンドルの (x,y) は中心なので半分ずらして描く
+      ctx.fillRect(h.x - HANDLE_SIZE / 2, h.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+      ctx.strokeRect(h.x - HANDLE_SIZE / 2, h.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+    });
+  }
+}
+
+// ============================================================
+// イベント
+// ============================================================
+canvas.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  const p = getMousePos(e);
+
+  // 優先順位 1: ハンドル(本体より先に判定しないと本体に食われる)
+  if (selected) {
+    const h = findHandleAt(selected, p.x, p.y);
+    if (h) {
+      mode = 'resize';
+      activeHandle = h.name;
+      // 開始時の矩形を保存 → 毎回ここから計算し直す(固定辺が守られる)
+      resizeStart = {
+        x: selected.x, y: selected.y, w: selected.w, h: selected.h,
+        mouseX: p.x, mouseY: p.y,
+      };
+      return;
+    }
+  }
+
+  // 優先順位 2: 本体 → 選択して移動開始
+  const wg = findWidgetAt(p.x, p.y);
+  if (wg) {
+    selected = wg;
+    mode = 'drag';
+    dragOffset = { x: p.x - wg.x, y: p.y - wg.y };
+    widgets.splice(widgets.indexOf(wg), 1);
+    widgets.push(wg);
+  } else {
+    selected = null; // 優先順位 3: 何もない場所 → 選択解除
+  }
+  requestRedraw();
+});
+
+window.addEventListener('mousemove', (e) => {
+  const p = getMousePos(e);
+
+  if (mode === 'drag') {
+    selected.x = p.x - dragOffset.x;
+    selected.y = p.y - dragOffset.y;
+    requestRedraw();
+    return;
+  }
+
+  if (mode === 'resize') {
+    const dx = p.x - resizeStart.mouseX; // マウスの総移動量
+    const dy = p.y - resizeStart.mouseY;
+    const wg = selected, s = resizeStart;
+
+    // 8方向を n/s/e/w の4条件に還元('ne'.includes('n') === true を利用)
+    if (activeHandle.includes('e')) wg.w = s.w + dx;
+    if (activeHandle.includes('s')) wg.h = s.h + dy;
+    if (activeHandle.includes('w')) { wg.x = s.x + dx; wg.w = s.w - dx; }
+    if (activeHandle.includes('n')) { wg.y = s.y + dy; wg.h = s.h - dy; }
+
+    // 最小サイズ: w/n 側は座標の補正も必要
+    if (wg.w < MIN_SIZE) {
+      if (activeHandle.includes('w')) wg.x = s.x + s.w - MIN_SIZE;
+      wg.w = MIN_SIZE;
+    }
+    if (wg.h < MIN_SIZE) {
+      if (activeHandle.includes('n')) wg.y = s.y + s.h - MIN_SIZE;
+      wg.h = MIN_SIZE;
+    }
+    requestRedraw();
+    return;
+  }
+
+  // idle: カーソルのフィードバック
+  if (selected) {
+    const h = findHandleAt(selected, p.x, p.y);
+    if (h) {
+      canvas.style.cursor = `${h.name}-resize`; // 名前をそのまま CSS カーソルに
+      return;
+    }
+  }
+  canvas.style.cursor = findWidgetAt(p.x, p.y) ? 'grab' : 'default';
+});
+
+window.addEventListener('mouseup', () => {
+  mode = 'idle';
+  activeHandle = null;
+  resizeStart = null;
+});
+
+draw();
+</script>
+</body>
+</html>

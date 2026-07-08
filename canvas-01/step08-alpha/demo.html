@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step08 Demo: 透過と合成</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  h2 { font-size: 15px; margin: 24px 0 8px; }
+  canvas { border: 1px solid #999; display: block; }
+  .note { color: #666; font-size: 13px; margin: 4px 0 0; }
+  /* 透明ピクセルが「見える」ように、canvas の背景にチェッカー模様を敷く */
+  .checker {
+    background-image:
+      linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%),
+      linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    background-color: #fff;
+  }
+  label { font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>Step08: 透過と合成</h1>
+
+<h2>1. rgba の重なり / globalAlpha との掛け算</h2>
+<canvas id="c1" class="checker" style="width:700px; height:180px;"></canvas>
+<p class="note">半透明同士の重なりは濃くなる。チェッカー模様が透けている部分が「透明ピクセル」。</p>
+
+<h2>2. カード丸ごと半透明: rgba 個別指定(左・破綻) vs globalAlpha(右・正解)</h2>
+<canvas id="c2" class="checker" style="width:700px; height:200px;"></canvas>
+<p class="note">左は背景と枠と文字が互いに透けて濃度がバラバラ。右は部品全体が均一に 50%。</p>
+
+<h2>3. globalAlpha をスライダーで変える + 影付きカード</h2>
+<label>globalAlpha: <input type="range" id="slider" min="0" max="1" step="0.01" value="0.85">
+<span id="alpha-value">0.85</span></label>
+<canvas id="c3" class="checker" style="width:700px; height:170px;"></canvas>
+
+<h2>4. globalCompositeOperation: スポットライト(destination-out)と加算(lighter)</h2>
+<canvas id="c4" style="width:700px; height:220px;"></canvas>
+<p class="note">マウスを動かすと穴(スポットライト)が追従する。右の円は lighter で加算合成。</p>
+
+<script>
+function setup(id) {
+  const canvas = document.getElementById(id);
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  return { canvas, ctx, W: rect.width, H: rect.height, dpr };
+}
+
+// ============================================================
+// 1. rgba の重なりと globalAlpha の掛け算
+// ============================================================
+{
+  const { ctx } = setup('c1');
+
+  // rgba(_, _, _, 0.5) の円を3つ重ねる → 重なりが濃くなる
+  const colors = ['rgba(217,83,79,0.5)', 'rgba(90,160,90,0.5)', 'rgba(74,144,217,0.5)'];
+  colors.forEach((c, i) => {
+    ctx.beginPath();
+    ctx.arc(90 + i * 55, 90, 55, 0, Math.PI * 2);
+    ctx.fillStyle = c;
+    ctx.fill();
+  });
+
+  // globalAlpha 0.5 × rgba の 0.5 = 実効 0.25
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = 'rgba(74,144,217,0.5)';
+  ctx.fillRect(340, 40, 120, 100);
+  ctx.restore();
+
+  ctx.fillStyle = '#333';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('rgba 0.5 ×3枚(重なりは濃くなる)', 30, 170);
+  ctx.fillText('globalAlpha 0.5 × rgba 0.5 = 実効 0.25', 340, 170);
+}
+
+// ============================================================
+// 2. カード丸ごと半透明: 2つの方法の比較
+// ============================================================
+{
+  const { ctx } = setup('c2');
+
+  // 共通のカード描画。alphaMode で半透明のかけ方を切り替える
+  function drawCard(x, y, mode) {
+    const w = 260, h = 120;
+
+    if (mode === 'globalAlpha') {
+      ctx.save();
+      ctx.globalAlpha = 0.5; // ← 部品全体に一括で効く
+    }
+    // mode === 'rgba' のときは各色に 0.5 を埋め込む
+    const a = mode === 'rgba' ? 0.5 : 1;
+
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10);
+    ctx.fillStyle = `rgba(43, 58, 74, ${a})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(74, 144, 217, ${a})`;
+    ctx.lineWidth = 6; // 枠を太くすると重なり破綻が分かりやすい
+    ctx.stroke();      // ← rgba モードでは枠と背景が互いに透けて濃くなる
+
+    ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('WIDGET', x + w / 2, y + h / 2);
+
+    if (mode === 'globalAlpha') ctx.restore();
+  }
+
+  drawCard(40, 30, 'rgba');
+  drawCard(390, 30, 'globalAlpha');
+
+  ctx.fillStyle = '#333';
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('rgba 個別指定: 枠と背景の重なりが濃く見える', 40, 180);
+  ctx.fillText('globalAlpha: 部品全体が均一な 50%', 390, 180);
+}
+
+// ============================================================
+// 3. スライダーで globalAlpha + 影
+// ============================================================
+{
+  const { ctx, W, H, dpr } = setup('c3');
+  const slider = document.getElementById('slider');
+  const label = document.getElementById('alpha-value');
+
+  function draw() {
+    const alpha = Number(slider.value);
+    label.textContent = alpha.toFixed(2);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // 影は半透明の黒が定番
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 6;
+    ctx.beginPath();
+    ctx.roundRect(40, 30, 300, 90, 12);
+    ctx.fillStyle = '#2b3a4a';
+    ctx.fill();
+    ctx.shadowColor = 'transparent'; // 文字には影を付けない
+
+    ctx.beginPath();
+    ctx.arc(80, 75, 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#5aa05a';
+    ctx.fill();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '15px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('保存しました — トースト通知', 110, 75);
+
+    ctx.restore(); // globalAlpha と影がここで元に戻る
+  }
+
+  slider.addEventListener('input', draw);
+  draw();
+}
+
+// ============================================================
+// 4. globalCompositeOperation
+// ============================================================
+{
+  const { canvas, ctx, W, H, dpr } = setup('c4');
+  let spot = { x: 170, y: 110 };
+
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
+    // 下地: ダッシュボード風の背景
+    ctx.fillStyle = '#dfe7ef';
+    ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = '#4a90d9';
+      ctx.fillRect(30 + i * 65, 60, 40, 100);
+    }
+
+    // --- スポットライト ---
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, 0, W / 2, H); // 左半分を暗く覆う
+
+    ctx.globalCompositeOperation = 'destination-out'; // 消しゴムモード
+    ctx.beginPath();
+    ctx.arc(spot.x, spot.y, 60, 0, Math.PI * 2);
+    ctx.fill(); // 「すでに描いた暗幕」に円形の穴が開く
+    ctx.restore(); // composite の戻し忘れ防止(save/restore が安全)
+
+    // --- lighter: 加算合成でグロー ---
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const colors = ['rgba(217,83,79,0.6)', 'rgba(90,160,90,0.6)', 'rgba(74,144,217,0.6)'];
+    colors.forEach((c, i) => {
+      ctx.beginPath();
+      ctx.arc(480 + i * 45, 110, 50, 0, Math.PI * 2);
+      ctx.fillStyle = c;
+      ctx.fill();
+    });
+    ctx.restore();
+
+    ctx.fillStyle = '#333';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('destination-out: 暗幕に穴(マウス追従)', 20, 205);
+    ctx.fillText('lighter: 加算合成(重なりが白く光る)', 430, 205);
+  }
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (e.offsetX < W / 2) { // 左半分だけ追従
+      spot = { x: e.offsetX, y: e.offsetY };
+      draw();
+    }
+  });
+  draw();
+}
+</script>
+</body>
+</html>

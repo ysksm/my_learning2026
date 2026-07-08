@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step05 演習: ヒットテストと選択</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fff; border: 1px solid #999; display: block; }
+</style>
+</head>
+<body>
+<h1>Step05 演習</h1>
+<p>クリックでウィジェットを選択できるようにしてください。重なりは「上が勝つ」こと。</p>
+<canvas id="canvas" style="width: 800px; height: 500px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+const rect = canvas.getBoundingClientRect();
+canvas.width = rect.width * dpr;
+canvas.height = rect.height * dpr;
+ctx.scale(dpr, dpr);
+const W = rect.width, H = rect.height;
+
+// 配列の後ろほど上に描かれる(B は A に重なっている)
+const widgets = [
+  { x: 100, y: 80,  w: 240, h: 150, color: '#4a90d9', name: 'A' },
+  { x: 260, y: 170, w: 240, h: 150, color: '#5aa05a', name: 'B' },
+  { x: 560, y: 120, w: 180, h: 200, color: '#d9782a', name: 'C' },
+];
+
+let hovered = null;
+let selected = null;
+
+// TODO(1): 矩形のヒットテストを実装する
+// (x, y) が wg の矩形の中にあれば true
+function hitTest(wg, x, y) {
+  return false; // ← 直すこと
+}
+
+// TODO(2): (x, y) にあるウィジェットを返す。なければ null。
+// 重なりは「上(=配列の後ろ)が勝つ」ように逆順ループで探すこと
+function findWidgetAt(x, y) {
+  return null; // ← 直すこと
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  widgets.forEach((wg) => {
+    ctx.beginPath();
+    ctx.roundRect(wg.x, wg.y, wg.w, wg.h, 8);
+    ctx.fillStyle = wg.color;
+    ctx.fill();
+
+    // ホバー中のハイライト(完成済み: hovered が正しく入れば動く)
+    if (wg === hovered) {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(wg.name, wg.x + wg.w / 2, wg.y + wg.h / 2);
+
+    // TODO(3): wg === selected のとき、少し外側(-5px, +10px)に
+    // 太さ 3 の青い枠 '#2266cc' を strokeRect で描く
+  });
+}
+
+// TODO(4): mousemove で hovered を更新する
+//  - findWidgetAt(e.offsetX, e.offsetY) の結果を hovered に入れる
+//  - canvas.style.cursor をホバー中は 'pointer'、それ以外は 'default' に
+//  - draw() を呼ぶ
+
+// TODO(5): click で selected を更新して draw() する
+
+// TODO(6)【発展】: click したウィジェットを最前面に移動する
+//  ヒント: widgets.splice(widgets.indexOf(wg), 1) で抜いて widgets.push(wg)
+
+draw();
+</script>
+</body>
+</html>
