@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Step10 演習: 中心原点の座標系に書き換える</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #eef1f5; }
+  canvas { background: #fafbfc; border: 1px solid #999; display: block; }
+  label { user-select: none; }
+</style>
+</head>
+<body>
+<h1>Step10 演習</h1>
+<p>今は左上原点で、描画コードに <code>W/2</code> が散らばっています。
+TODO を実装して「中心原点」の座標管理に書き換えてください。</p>
+<label><input type="checkbox" id="yUp"> Y-up(発展課題用)</label>
+<canvas id="canvas" style="width: 100%; height: 520px;"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+let W, H;
+
+function setupCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  W = rect.width; H = rect.height;
+}
+setupCanvas();
+
+let yUp = false; // 発展課題(TODO 5)まで使わない
+
+// TODO(1): 座標変換関数を実装する
+//  screenToCenter: centerX = screenX - W/2, centerY = screenY - H/2
+//  centerToScreen: screenX = centerX + W/2, screenY = centerY + H/2
+function screenToCenter(sx, sy) {
+  return { x: sx, y: sy }; // ← 仮実装。直すこと
+}
+function centerToScreen(cx, cy) {
+  return { x: cx, y: cy }; // ← 仮実装。直すこと
+}
+
+// シーンのデータ。中心からの相対位置で持ちたい
+const widgets = [
+  { x: -220, y: -130, w: 160, h: 100, color: '#4a90d9', label: 'A' },
+  { x:   60, y: -130, w: 160, h: 100, color: '#5aa05a', label: 'B' },
+  { x:  -80, y:   40, w: 160, h: 100, color: '#d9782a', label: 'C' },
+];
+
+function drawScene() {
+  // 原点マーカー(完成済み。中心原点になれば自動的に中央に出る)
+  ctx.strokeStyle = '#b0bac5';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-20, 0); ctx.lineTo(20, 0);
+  ctx.moveTo(0, -20); ctx.lineTo(0, 20);
+  ctx.stroke();
+
+  // TODO(2)-b: 中心原点になったら、この W/2, H/2 を消して
+  //  wg.x, wg.y をそのまま使う形に直すこと
+  widgets.forEach((wg) => {
+    ctx.beginPath();
+    ctx.roundRect(W / 2 + wg.x, H / 2 + wg.y, wg.w, wg.h, 10); // ← W/2 まみれ
+    ctx.fillStyle = wg.color;
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(wg.label, W / 2 + wg.x + wg.w / 2, H / 2 + wg.y + wg.h / 2);
+  });
+
+  // TODO(4): 半径 180 の円周上に 8 個の点を等間隔に描く
+  //  ヒント: angle = (i / 8) * Math.PI * 2
+  //          x = 180 * Math.cos(angle), y = 180 * Math.sin(angle)
+  //  中心原点なら x, y をそのまま ctx.arc に渡すだけで済む
+}
+
+let mouse = null; // 中心座標系でのマウス位置
+
+function drawHud() {
+  const text = mouse
+    ? `mouse center: (${mouse.x.toFixed(0)}, ${mouse.y.toFixed(0)})`
+    : 'マウスをキャンバスに乗せてください';
+  ctx.fillStyle = 'rgba(20,30,40,0.75)';
+  ctx.fillRect(10, 10, 320, 28);
+  ctx.fillStyle = '#fff';
+  ctx.font = '13px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 20, 24);
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  ctx.save();
+  // TODO(2)-a: 原点をキャンバス中央へ動かす(1行)
+  //  ヒント: ctx.translate(W / 2, H / 2)
+
+  // TODO(5)【発展】: yUp が true なら ctx.scale(1, -1) で y 軸を反転する
+  //  そのままだとウィジェットのラベル文字も上下反転してしまう。
+  //  README の fillTextUpright(描く瞬間だけ scale(1,-1) で打ち消す)を
+  //  drawScene 内のテキスト描画に適用して、文字だけ正しい向きに保つこと
+
+  drawScene();
+  ctx.restore();
+
+  drawHud(); // HUD は変換の外(スクリーン座標)で描く。ここは完成済み
+}
+
+// TODO(3): マウス位置を中心座標系に変換して HUD に表示する
+//  - mousemove で mouse = screenToCenter(e.offsetX, e.offsetY) にして draw()
+//  - mouseleave で mouse = null にして draw()
+//  完成すると、キャンバス中央にマウスを置いたとき (0, 0) と表示される
+
+document.getElementById('yUp').addEventListener('change', (e) => {
+  yUp = e.target.checked;
+  draw();
+});
+
+// リサイズ対応(完成済み)。中心原点にすれば、データを変えずに内容が中央に追従する
+window.addEventListener('resize', () => { setupCanvas(); draw(); });
+
+draw();
+</script>
+</body>
+</html>
