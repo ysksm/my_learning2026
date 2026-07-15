@@ -1,0 +1,150 @@
+<!doctype html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Claude Code ログ分析 — Step by Step</title><style>@import url('https://fonts.googleapis.com/css2?family=DM+Mono&family=Manrope:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap');:root{--ink:#17212b;--paper:#fffdf8;--blue:#2563eb;--aqua:#12b8a6;--yellow:#ffd65a;--line:#dfe7e8;--code:#12202c}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:#e8efed;font-family:Manrope,'Noto Sans JP',sans-serif}.deck{min-height:100vh;display:grid;place-items:center;padding:30px}.slide{width:min(1200px,100%);min-height:680px;background:var(--paper);border-radius:24px;box-shadow:0 24px 70px #31485235;padding:58px 66px 48px;display:none;position:relative;overflow:hidden}.slide.active{display:block;animation:in .25s ease-out}@keyframes in{from{opacity:0;transform:translateY(10px)}}.slide:before{content:"";position:absolute;width:380px;height:380px;border-radius:50%;background:#d9f5ed;right:-170px;top:-200px}.slide>*{position:relative}.eyebrow{color:var(--aqua);font-size:13px;font-weight:800;letter-spacing:.14em;margin:0 0 13px}.title-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:40px;align-items:end;min-height:520px}h1{font-size:clamp(39px,5.1vw,66px);line-height:1.12;letter-spacing:-.05em;margin:0}h1 em{font-style:normal;color:var(--blue)}h2{margin:0 0 15px;font-size:clamp(27px,3.2vw,42px);line-height:1.2;letter-spacing:-.045em}h3{font-size:17px;margin:0 0 9px}.lead{max-width:840px;font-family:'Noto Sans JP';font-size:17px;line-height:1.8;color:#42515b;margin:0 0 10px}.tag{display:inline-block;padding:6px 10px;background:#e0f6f2;color:#087d72;border-radius:100px;font-size:12px;font-weight:800}.goal{background:var(--ink);color:#fff;border-radius:18px;padding:25px;font-family:'Noto Sans JP';line-height:1.8}.goal b{color:var(--yellow)}.two{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:19px 21px}.card p,.card li{font-family:'Noto Sans JP';line-height:1.7;color:#485660;font-size:14px;margin:6px 0}.card ul{margin:6px 0;padding-left:19px}pre{margin:14px 0 0;background:var(--code);color:#d7e7ef;border-radius:15px;padding:18px 20px;overflow:auto;font:12.5px/1.6 'DM Mono',monospace;box-shadow:inset 4px 0 var(--aqua);white-space:pre-wrap}.k{color:#87d8ff}.c{color:#8298a8}.s{color:#a8e6a1}.path{display:inline-block;color:#087d72;background:#dff7f2;padding:4px 8px;border-radius:7px;font:12px 'DM Mono'}.tree{font:13px/1.75 'DM Mono';color:#253947;background:#f1f6f5;padding:20px 22px;border-radius:14px;white-space:pre-wrap;margin:12px 0 0}.flow{display:flex;align-items:stretch;gap:10px;margin:22px 0}.flow div{flex:1;border-radius:13px;padding:15px 10px;background:#e8f6f5;font-weight:800;text-align:center;font-size:14px}.flow div small{display:block;font-weight:500;color:#4c6a68;margin-top:4px}.flow i{align-self:center;color:var(--blue);font-size:24px;font-style:normal}.check{list-style:none;padding:0;margin:10px 0}.check li{padding:7px 0 7px 29px;position:relative;font-family:'Noto Sans JP';font-size:14.5px}.check li:before{content:'✓';position:absolute;left:0;color:var(--aqua);font-weight:900}.memory{border-left:5px solid var(--yellow);padding:12px 16px;background:#fff8d8;font-family:'Noto Sans JP';line-height:1.7;margin-top:18px;font-size:14.5px}.footer{position:absolute;bottom:20px;left:66px;right:66px;display:flex;justify-content:space-between;font:12px 'DM Mono';color:#7a8a92}.keys{position:fixed;bottom:19px;right:25px;color:#51616c;font:12px 'DM Mono'}kbd{background:#fff;border:1px solid #cbd7d8;border-bottom-width:2px;padding:2px 5px;border-radius:4px}table.mx{width:100%;border-collapse:collapse;font-family:'Noto Sans JP';font-size:13.5px;margin-top:10px}table.mx th{background:#e8f6f5;text-align:left;padding:9px 12px;font-size:13px}table.mx td{border-bottom:1px solid var(--line);padding:8px 12px;color:#42515b;line-height:1.55}table.mx code,li code,p code{font:12px 'DM Mono';background:#eef4f3;padding:2px 5px;border-radius:5px;color:#0b6a60}@media(max-width:700px){.deck{padding:0}.slide{border-radius:0;min-height:100vh;padding:42px 25px 50px}.title-grid,.two,.three{grid-template-columns:1fr}.slide:before{display:none}.footer{left:25px;right:25px}pre{font-size:11px;padding:14px}.flow{flex-direction:column}.flow i{align-self:center;transform:rotate(90deg)}}</style></head><body><main class="deck">
+
+<!-- 00 TITLE -->
+<section class="slide active"><div class="title-grid"><div><p class="eyebrow">CLAUDE CODE × JSONL × DATA ANALYSIS</p><h1>Claude Code のログを<br><em>丸ごと解析する。</em></h1><p class="lead">Claude Code は全セッションを JSONL で記録しています。その在り処・スキーマ・分析手順を step by step で辿り、会話・ツール・トークン・時間・エラーまで「解析できるもの全部」を取り出します。</p><span class="tag">jq + Python だけでOK</span></div><aside class="goal">このスライドのゴールは、<br><b>自分のログから利用実態レポートを自力で作れること。</b><br>よく使うツール、かかったコスト、待ち時間、失敗傾向まで数字で見えるようになります。</aside></div><div class="footer"><span>CC-LOG / 00</span><span>START</span></div></section>
+
+<!-- 01 WHERE -->
+<section class="slide"><p class="eyebrow">01 / まず在り処を知る</p><h2>ログはどこにある？ — <code>~/.claude/</code> の地図</h2><p class="lead">主役はプロジェクトごとのセッショントランスクリプト。作業ディレクトリのパスを <code>/</code>→<code>-</code> に変換したフォルダに、セッションIDごとの JSONL が置かれます。</p><div class="tree">~/.claude/
+├── projects/                       ← ★ 本命：セッショントランスクリプト
+│   └── -home-user-my_learning2026/   (cwd の / を - に置換した名前)
+│       └── &lt;session-id&gt;.jsonl        (1セッション = 1ファイル)
+├── history.jsonl                   ← 入力プロンプトの履歴
+├── todos/                          ← TodoWrite のタスク状態 (JSON)
+├── shell-snapshots/                ← Bash 実行時のシェル環境スナップショット
+└── settings.json                   ← cleanupPeriodDays で保持期間を制御</div><div class="memory"><b>注意：</b>古いトランスクリプトは <code>cleanupPeriodDays</code>（既定30日）で自動削除されます。長期分析したい場合は先にコピーして退避しましょう。</div><div class="footer"><span>CC-LOG / 01</span><span>WHERE</span></div></section>
+
+<!-- 02 STEP1 -->
+<section class="slide"><p class="eyebrow">02 / STEP 1</p><h2>JSONL の基本 — 1行 = 1レコード</h2><p class="lead">JSONL は「1行に1つの JSON オブジェクト」を並べた形式。行単位で読めるので、<code>jq</code> やストリーム処理と相性抜群です。まずはセッション一覧と行数から。</p><pre><code><span class="c"># プロジェクトのログディレクトリへ</span>
+cd ~/.claude/projects/-home-user-my_learning2026
+
+<span class="c"># セッション一覧（更新順）とレコード数</span>
+ls -lt *.jsonl
+wc -l *.jsonl
+
+<span class="c"># 最初の1レコードを整形して眺める</span>
+head -1 &lt;session-id&gt;.jsonl | jq .</code></pre><div class="two"><div class="card"><h3>ここで分かること</h3><ul class="check"><li>セッションの数と規模（行数≒イベント数）</li><li>ファイル更新日時＝最後に使った日</li><li>プロジェクトごとの利用量の偏り</li></ul></div><div class="card"><h3>準備するツール</h3><p><code>jq</code>（集計ワンライナー用）と <code>Python 3</code>（本格分析用、pandas があると便利）。どちらも標準的な環境で入手できます。</p></div></div><div class="footer"><span>CC-LOG / 02</span><span>STEP 1 — INVENTORY</span></div></section>
+
+<!-- 03 STEP2 -->
+<section class="slide"><p class="eyebrow">03 / STEP 2</p><h2>レコード種別を把握する — <code>type</code> フィールド</h2><p class="lead">全レコードはトップレベルの <code>type</code> で分類できます。まず種別の分布を数えると、そのセッションの構造が一目で分かります。</p><pre><code>jq -r '.type' *.jsonl | sort | uniq -c | sort -rn</code></pre><table class="mx"><tr><th>type</th><th>意味</th><th>中身のポイント</th></tr><tr><td><code>user</code></td><td>ユーザー発話 or ツール実行結果</td><td><code>message.content</code> が文字列なら人間の入力、配列（<code>tool_result</code>）ならツールの戻り</td></tr><tr><td><code>assistant</code></td><td>Claude の応答</td><td><code>message.content[]</code> に <code>text</code> / <code>thinking</code> / <code>tool_use</code> ブロック。<code>usage</code>（トークン）と <code>model</code> 付き</td></tr><tr><td><code>attachment</code></td><td>コンテキスト添付</td><td>システムリマインダーや差し込み情報</td></tr><tr><td><code>queue-operation</code></td><td>入力キュー操作</td><td>enqueue/dequeue とプロンプト原文</td></tr><tr><td><code>summary</code> / <code>last-prompt</code> など</td><td>セッション管理用</td><td>コンパクト時の要約、再開用ポインタ</td></tr></table><div class="footer"><span>CC-LOG / 03</span><span>STEP 2 — RECORD TYPES</span></div></section>
+
+<!-- 04 STEP3 -->
+<section class="slide"><p class="eyebrow">04 / STEP 3</p><h2>共通メタデータを読む</h2><p class="lead">user / assistant レコードには毎回同じメタデータが付きます。これが後の全分析の「軸」になります。</p><div class="two"><div><table class="mx"><tr><th>フィールド</th><th>使い道</th></tr><tr><td><code>uuid</code> / <code>parentUuid</code></td><td>会話ツリーの復元（次ステップ）</td></tr><tr><td><code>timestamp</code></td><td>時間分析すべての基礎（ISO 8601）</td></tr><tr><td><code>sessionId</code></td><td>セッション横断の集計キー</td></tr><tr><td><code>cwd</code> / <code>gitBranch</code></td><td>どのリポジトリ・ブランチでの作業か</td></tr><tr><td><code>version</code></td><td>Claude Code のバージョン推移</td></tr><tr><td><code>isSidechain</code></td><td>サブエージェント（別働隊）の発話か</td></tr><tr><td><code>permissionMode</code></td><td>権限モード（default / plan など）</td></tr><tr><td><code>requestId</code></td><td>API リクエスト単位の紐付け</td></tr></table></div><div><pre><code><span class="c"># 例：このレコードは誰が・いつ・どこで</span>
+{
+  <span class="k">"type"</span>: <span class="s">"user"</span>,
+  <span class="k">"uuid"</span>: <span class="s">"81ac19aa-…"</span>,
+  <span class="k">"parentUuid"</span>: <span class="k">null</span>,
+  <span class="k">"timestamp"</span>: <span class="s">"2026-07-15T11:56:36.150Z"</span>,
+  <span class="k">"sessionId"</span>: <span class="s">"8c908057-…"</span>,
+  <span class="k">"cwd"</span>: <span class="s">"/home/user/my_learning2026"</span>,
+  <span class="k">"gitBranch"</span>: <span class="s">"claude/…-x3180r"</span>,
+  <span class="k">"version"</span>: <span class="s">"2.1.210"</span>
+}</code></pre></div></div><div class="memory"><b>ポイント：</b><code>gitBranch</code> と <code>cwd</code> があるので「どのブランチ作業に何トークン使ったか」まで割り出せます。</div><div class="footer"><span>CC-LOG / 04</span><span>STEP 3 — METADATA</span></div></section>
+
+<!-- 05 STEP4 -->
+<section class="slide"><p class="eyebrow">05 / STEP 4</p><h2>会話ツリーを復元する — <code>parentUuid</code></h2><p class="lead">各レコードは <code>parentUuid</code> で直前のレコードを指す連結リスト（分岐すると木）です。これを辿ると会話の実際の流れが再現できます。</p><div class="flow"><div>user<br><small>prompt (parent=null)</small></div><i>→</i><div>assistant<br><small>thinking / text</small></div><i>→</i><div>assistant<br><small>tool_use</small></div><i>→</i><div>user<br><small>tool_result</small></div><i>→</i><div>assistant<br><small>text（最終回答）</small></div></div><pre><code><span class="k">import</span> json
+nodes = {}
+<span class="k">with</span> open(path) <span class="k">as</span> f:
+    <span class="k">for</span> line <span class="k">in</span> f:
+        d = json.loads(line)
+        <span class="k">if</span> <span class="s">'uuid'</span> <span class="k">in</span> d: nodes[d[<span class="s">'uuid'</span>]] = d
+
+<span class="k">def</span> chain(leaf):  <span class="c"># 葉から根まで遡る</span>
+    <span class="k">while</span> leaf: yield leaf; leaf = nodes.get(leaf.get(<span class="s">'parentUuid'</span>) <span class="k">or</span> <span class="s">''</span>)</code></pre><div class="memory"><b>sidechain：</b><code>isSidechain: true</code> の系列はサブエージェント（Task/Agent）の独立した会話。本流と分けて集計すると「委譲した仕事量」が測れます。</div><div class="footer"><span>CC-LOG / 05</span><span>STEP 4 — CONVERSATION TREE</span></div></section>
+
+<!-- 06 STEP5 -->
+<section class="slide"><p class="eyebrow">06 / STEP 5</p><h2>ユーザープロンプトを抽出する</h2><p class="lead">「人間が何を頼んだか」はプロダクト分析の出発点。<code>type=user</code> のうち <code>content</code> が文字列のものが人間の入力、配列のものはツール結果なので除外します。</p><pre><code><span class="c"># 人間のプロンプトだけを時刻付きで抽出</span>
+jq -r 'select(.type==<span class="s">"user"</span> and (.message.content|type)==<span class="s">"string"</span>)
+       | [.timestamp, .message.content] | @tsv' *.jsonl
+
+<span class="c"># 全プロジェクト横断ならこちら（入力履歴）</span>
+jq -r '.display' ~/.claude/history.jsonl | head -50</code></pre><div class="two"><div class="card"><h3>ここで分かること</h3><ul class="check"><li>依頼の種類（実装 / 調査 / 修正 / 質問）の割合</li><li>1セッションあたりの指示回数＝往復数</li><li>プロンプトの長さと成果の関係</li></ul></div><div class="card"><h3>ワンランク上</h3><p>抽出したプロンプトを Claude に分類させる（「このプロンプト集を用途別にタグ付けして」）と、自分の使い方の癖が定量化できます。</p></div></div><div class="footer"><span>CC-LOG / 06</span><span>STEP 5 — PROMPTS</span></div></section>
+
+<!-- 07 STEP6 -->
+<section class="slide"><p class="eyebrow">07 / STEP 6</p><h2>ツール使用を分析する — <code>tool_use</code> と <code>tool_result</code></h2><p class="lead">assistant の <code>tool_use</code> ブロック（name / input / id）と、それに対応する user 側の <code>tool_result</code>（同じ <code>tool_use_id</code>）をペアにすると、Claude の「行動ログ」になります。</p><pre><code><span class="c"># ツール別の使用回数ランキング</span>
+jq -r 'select(.type==<span class="s">"assistant"</span>) | .message.content[]?
+       | select(.type==<span class="s">"tool_use"</span>) | .name' *.jsonl | sort | uniq -c | sort -rn
+
+<span class="c"># Bash で実行されたコマンドの傾向（先頭単語）</span>
+jq -r 'select(.type==<span class="s">"assistant"</span>) | .message.content[]?
+       | select(.type==<span class="s">"tool_use"</span> and .name==<span class="s">"Bash"</span>)
+       | .input.command' *.jsonl | awk '{print $1}' | sort | uniq -c | sort -rn</code></pre><div class="three"><div class="card"><h3>行動の内訳</h3><p>Read / Edit / Write / Bash / Grep… の比率で「読む仕事か書く仕事か」が見える。</p></div><div class="card"><h3>触ったファイル</h3><p><code>input.file_path</code> を集計すればホットスポットのファイルが特定できる。</p></div><div class="card"><h3>実行結果</h3><p><code>toolUseResult</code> の stdout / stderr / interrupted で成否と中断を判定。</p></div></div><div class="footer"><span>CC-LOG / 07</span><span>STEP 6 — TOOLS</span></div></section>
+
+<!-- 08 STEP7 -->
+<section class="slide"><p class="eyebrow">08 / STEP 7</p><h2>トークンとコストを算出する — <code>usage</code></h2><p class="lead">assistant レコードの <code>message.usage</code> に、APIと同じ粒度のトークン内訳が毎回記録されています。<code>model</code> と掛け合わせれば概算コストが出せます。</p><div class="two"><div><pre><code><span class="k">"usage"</span>: {
+  <span class="k">"input_tokens"</span>: 2,
+  <span class="k">"output_tokens"</span>: 410,
+  <span class="k">"cache_creation_input_tokens"</span>: 39732,
+  <span class="k">"cache_read_input_tokens"</span>: 0,
+  <span class="k">"cache_creation"</span>: {
+    <span class="k">"ephemeral_1h_input_tokens"</span>: 39732,
+    <span class="k">"ephemeral_5m_input_tokens"</span>: 0 },
+  <span class="k">"service_tier"</span>: <span class="s">"standard"</span>
+}</code></pre></div><div><pre><code><span class="c"># セッション合計（入力/出力/キャッシュ）</span>
+jq -s '[.[] | select(.type==<span class="s">"assistant"</span>)
+        | .message.usage]
+  | { in:  (map(.input_tokens)|add),
+      out: (map(.output_tokens)|add),
+      cache_w: (map(.cache_creation_input_tokens)|add),
+      cache_r: (map(.cache_read_input_tokens)|add) }' \
+  &lt;session-id&gt;.jsonl</code></pre></div></div><ul class="check"><li>モデル別（<code>.message.model</code>）に分ければ単価を掛けてコスト概算</li><li><code>cache_read ÷ (input+cache_read)</code> でキャッシュヒット率＝節約効率</li><li>ブランチ・プロジェクト別に集計すれば「この機能開発に幾らかかったか」</li></ul><div class="memory"><b>近道：</b>コスト集計だけなら OSS の <code>npx ccusage</code> が同じ JSONL を読んで日別・モデル別レポートを出してくれます。</div><div class="footer"><span>CC-LOG / 08</span><span>STEP 7 — TOKENS &amp; COST</span></div></section>
+
+<!-- 09 STEP8 -->
+<section class="slide"><p class="eyebrow">09 / STEP 8</p><h2>時間を分析する — <code>timestamp</code> の差分</h2><p class="lead">全レコードにミリ秒精度のタイムスタンプがあるので、差分を取るだけで応答速度・作業時間・活動パターンが数値化できます。</p><div class="three"><div class="card"><h3>応答レイテンシ</h3><p>ユーザープロンプト → 直後の assistant レコードの時刻差。ターンごとの「待ち時間」。</p></div><div class="card"><h3>ツール実行時間</h3><p><code>tool_use</code> → 対応する <code>tool_result</code> の時刻差。重いビルドやテストが特定できる。</p></div><div class="card"><h3>セッション時間</h3><p>最初と最後のレコードの差。日別・時間帯別に並べれば利用ヒートマップに。</p></div></div><pre><code><span class="k">import</span> json, pandas <span class="k">as</span> pd
+rows = [json.loads(l) <span class="k">for</span> l <span class="k">in</span> open(path)]
+df = pd.DataFrame([r <span class="k">for</span> r <span class="k">in</span> rows <span class="k">if</span> <span class="s">'timestamp'</span> <span class="k">in</span> r])
+df[<span class="s">'ts'</span>] = pd.to_datetime(df[<span class="s">'timestamp'</span>])
+df[<span class="s">'gap'</span>] = df[<span class="s">'ts'</span>].diff()          <span class="c"># レコード間隔</span>
+df.groupby(df[<span class="s">'ts'</span>].dt.hour).size()   <span class="c"># 時間帯別アクティビティ</span></code></pre><div class="footer"><span>CC-LOG / 09</span><span>STEP 8 — TIME</span></div></section>
+
+<!-- 10 STEP9 -->
+<section class="slide"><p class="eyebrow">10 / STEP 9</p><h2>エラーと中断を洗い出す</h2><p class="lead">失敗パターンの分析は改善効果が最も大きい部分。ログには失敗のシグナルが複数の場所に残ります。</p><table class="mx"><tr><th>シグナル</th><th>場所</th><th>意味</th></tr><tr><td><code>is_error: true</code></td><td>user レコードの <code>tool_result</code> ブロック</td><td>ツール呼び出しがエラーを返した</td></tr><tr><td><code>stderr</code> が非空</td><td><code>toolUseResult</code></td><td>コマンドは動いたが警告/エラー出力あり</td></tr><tr><td><code>interrupted: true</code></td><td><code>toolUseResult</code></td><td>ユーザーが実行を中断した（信頼のシグナル）</td></tr><tr><td><code>stop_reason</code></td><td>assistant の <code>message</code></td><td><code>tool_use</code> / <code>end_turn</code> など応答の終わり方</td></tr><tr><td>権限拒否の文言</td><td><code>tool_result</code> の本文</td><td>許可プロンプトで拒否された操作の傾向</td></tr></table><pre><code><span class="c"># エラーになったツール呼び出しの数</span>
+jq '[select(.type==<span class="s">"user"</span>) | .message.content[]?
+     | select(.type==<span class="s">"tool_result"</span> and .is_error==true)] | length' *.jsonl</code></pre><div class="memory"><b>使い方：</b>「エラー率の高いツール×コマンド」を出すと、CLAUDE.md に書くべき注意書き（例：このリポジトリではテストはこう実行する）が自動的に決まります。</div><div class="footer"><span>CC-LOG / 10</span><span>STEP 9 — ERRORS</span></div></section>
+
+<!-- 11 STEP10 -->
+<section class="slide"><p class="eyebrow">11 / STEP 10</p><h2>可視化して1枚のレポートにする</h2><p class="lead">ここまでの集計を pandas に集めれば、あとは好きな形で出力するだけ。まずは4枚のチャートから始めるのがおすすめです。</p><div class="two"><div class="card"><h3>最初に作る4チャート</h3><ul class="check"><li>日別トークン消費（積み上げ：入力/出力/キャッシュ）</li><li>ツール使用回数 Top10（横棒）</li><li>時間帯×曜日の利用ヒートマップ</li><li>セッションごとの往復数とエラー数（散布図）</li></ul></div><div><pre><code><span class="k">import</span> glob, json, pandas <span class="k">as</span> pd
+recs = []
+<span class="k">for</span> p <span class="k">in</span> glob.glob(<span class="s">'~/.claude/projects/*/*.jsonl'</span>):
+    <span class="k">for</span> l <span class="k">in</span> open(p):
+        d = json.loads(l)
+        <span class="k">if</span> d.get(<span class="s">'type'</span>)==<span class="s">'assistant'</span>:
+            u = d[<span class="s">'message'</span>].get(<span class="s">'usage'</span>,{})
+            recs.append({<span class="s">'ts'</span>:d[<span class="s">'timestamp'</span>],
+              <span class="s">'model'</span>:d[<span class="s">'message'</span>].get(<span class="s">'model'</span>),
+              <span class="s">'out'</span>:u.get(<span class="s">'output_tokens'</span>,0)})
+df = pd.DataFrame(recs)  <span class="c"># → groupby して plot</span></code></pre></div></div><div class="memory"><b>発展：</b>この解析自体を Claude Code に頼むのが最速です。「~/.claude/projects の JSONL を読んで利用レポートを HTML で作って」— このスライドの手順がそのままプロンプトになります。</div><div class="footer"><span>CC-LOG / 11</span><span>STEP 10 — VISUALIZE</span></div></section>
+
+<!-- 12 MATRIX -->
+<section class="slide"><p class="eyebrow">12 / 全体マップ</p><h2>解析できること 一覧マトリクス</h2><table class="mx"><tr><th>カテゴリ</th><th>分かること</th><th>使うフィールド</th></tr><tr><td>会話</td><td>プロンプト内容・往復数・依頼の種類・会話の分岐</td><td><code>type=user</code>, <code>message.content</code>, <code>parentUuid</code></td></tr><tr><td>行動</td><td>ツール比率・実行コマンド・編集ファイル・委譲(サブエージェント)</td><td><code>tool_use.name/input</code>, <code>isSidechain</code></td></tr><tr><td>コスト</td><td>トークン内訳・モデル別コスト・キャッシュヒット率</td><td><code>usage.*</code>, <code>model</code>, <code>service_tier</code></td></tr><tr><td>時間</td><td>応答待ち・ツール実行時間・セッション長・活動時間帯</td><td><code>timestamp</code> の差分</td></tr><tr><td>品質</td><td>エラー率・中断率・権限拒否・stop_reason 分布</td><td><code>is_error</code>, <code>stderr</code>, <code>interrupted</code>, <code>stop_reason</code></td></tr><tr><td>文脈</td><td>プロジェクト/ブランチ別の作業量・CCバージョン推移</td><td><code>cwd</code>, <code>gitBranch</code>, <code>version</code></td></tr><tr><td>思考</td><td>thinking ブロックの量＝難易度の代理指標</td><td><code>content[].type=="thinking"</code></td></tr><tr><td>タスク</td><td>TodoWrite の計画と完了状況</td><td><code>~/.claude/todos/*.json</code></td></tr></table><div class="footer"><span>CC-LOG / 12</span><span>WHAT YOU CAN ANALYZE</span></div></section>
+
+<!-- 13 SNIPPETS -->
+<section class="slide"><p class="eyebrow">13 / チートシート</p><h2>コピペで使えるワンライナー集</h2><div class="two"><div><pre><code><span class="c"># ① レコード種別の分布</span>
+jq -r '.type' s.jsonl | sort | uniq -c
+
+<span class="c"># ② 人間のプロンプト一覧</span>
+jq -r 'select(.type==<span class="s">"user"</span> and
+  (.message.content|type)==<span class="s">"string"</span>)
+  | .message.content' s.jsonl
+
+<span class="c"># ③ ツール使用 Top10</span>
+jq -r 'select(.type==<span class="s">"assistant"</span>)
+  | .message.content[]?
+  | select(.type==<span class="s">"tool_use"</span>).name' s.jsonl \
+  | sort | uniq -c | sort -rn | head</code></pre></div><div><pre><code><span class="c"># ④ 総出力トークン</span>
+jq -s '[.[] | select(.type==<span class="s">"assistant"</span>)
+  | .message.usage.output_tokens] | add' s.jsonl
+
+<span class="c"># ⑤ 使用モデルの内訳</span>
+jq -r 'select(.type==<span class="s">"assistant"</span>)
+  | .message.model' s.jsonl | sort | uniq -c
+
+<span class="c"># ⑥ エラーになった tool_result 数</span>
+jq '[select(.type==<span class="s">"user"</span>)
+  | .message.content[]?
+  | select(.type==<span class="s">"tool_result"</span>
+     and .is_error==true)] | length' s.jsonl</code></pre></div></div><div class="memory"><b>メモ：</b><code>s.jsonl</code> は対象セッションファイル。<code>*.jsonl</code> にすればプロジェクト全体を一括集計できます。</div><div class="footer"><span>CC-LOG / 13</span><span>CHEAT SHEET</span></div></section>
+
+<!-- 14 WRAP -->
+<section class="slide"><p class="eyebrow">14 / 仕上げ</p><h2>まとめと、扱う上での注意</h2><div class="two"><div class="card"><h3>今日の手順（再掲）</h3><ul class="check"><li>在り処：<code>~/.claude/projects/…/*.jsonl</code></li><li><code>type</code> で分類 → メタデータを軸にする</li><li><code>parentUuid</code> で会話ツリーを復元</li><li>プロンプト / ツール / usage / 時刻を集計</li><li>エラー・中断で改善点を特定</li><li>pandas で1枚のレポートに可視化</li></ul></div><div class="card"><h3>注意点</h3><p><b>機密が入っている：</b>ログにはコード片・パス・コマンド出力がそのまま残ります。共有前に必ず内容を確認。</p><p><b>消える：</b><code>cleanupPeriodDays</code>（既定30日）で自動削除。分析用アーカイブは別途退避。</p><p><b>スキーマは非公式：</b>内部フォーマットはバージョンで変わり得ます。スクリプトは <code>.get()</code> で防御的に。</p></div></div><div class="memory"><b>次の一歩：</b>週次で自動集計する cron / Routine を組めば「先週の Claude Code 利用レポート」が毎週届く仕組みまであと一歩です。</div><div class="footer"><span>CC-LOG / 14</span><span>YOU CAN ANALYZE IT ALL</span></div></section>
+
+</main><div class="keys"><kbd>←</kbd> <kbd>→</kbd> または <kbd>Space</kbd> で移動</div><script>const slides=[...document.querySelectorAll('.slide')];let current=0;const show=n=>{current=(n+slides.length)%slides.length;slides.forEach((s,i)=>s.classList.toggle('active',i===current));location.hash=current+1};const h=Number(location.hash.slice(1));if(h&&h<=slides.length)show(h-1);addEventListener('keydown',e=>{if(['ArrowRight',' ','PageDown'].includes(e.key)){e.preventDefault();show(current+1)}if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();show(current-1)}if(e.key==='Home')show(0);if(e.key==='End')show(slides.length-1)});let start;addEventListener('touchstart',e=>start=e.changedTouches[0].screenX);addEventListener('touchend',e=>{const d=e.changedTouches[0].screenX-start;if(Math.abs(d)>40)show(current+(d<0?1:-1))});</script></body></html>
